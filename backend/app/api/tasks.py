@@ -101,7 +101,7 @@ async def update_subtask(subtask_id: int, data: SubTaskUpdate, db: AsyncSession 
     await recalc_progress(db, s.stage_task_id)
     from app.api.helpers import track_activity
     if data.status == 'done':
-        await track_activity(db, __import__('datetime').date.today(), 'subtask_done')
+        await track_activity(db, date.today(), 'subtask_done')
     return subtask_to_dict(s)
 
 # Activity tracking patch — appended to existing tasks.py

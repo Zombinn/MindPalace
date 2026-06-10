@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class GoalCreate(BaseModel):
@@ -10,6 +10,12 @@ class GoalCreate(BaseModel):
     end_date: date
     priority: str = "P1"
     status: str = "pending"
+
+    @model_validator(mode="after")
+    def check_dates(self):
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValueError("end_date must not be earlier than start_date")
+        return self
 
 
 class GoalUpdate(BaseModel):
@@ -28,6 +34,14 @@ class StageTaskCreate(BaseModel):
     end_date: Optional[date] = None
     exam_config: Optional[dict] = None
     max_delays: int = 3
+
+    @model_validator(mode="after")
+    def check_dates(self):
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValueError("end_date must not be earlier than start_date")
+        if self.max_delays < 0:
+            raise ValueError("max_delays must be >= 0")
+        return self
 
 
 class StageTaskUpdate(BaseModel):

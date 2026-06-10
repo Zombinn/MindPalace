@@ -1,8 +1,10 @@
 """FastAPI application entry point — MindPalace Personal Growth OS."""
+import uuid
 from contextlib import asynccontextmanager
 from datetime import date
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from loguru import logger
 from sqlalchemy import select, func
 
@@ -21,6 +23,15 @@ from app.api.notes import router as notes_router
 from app.api.dashboard import router as dashboard_router
 from app.api.settings import router as settings_router
 from app.api.wrongbook import router as wrongbook_router
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Inject X-Request-ID header for request correlation."""
+    async def dispatch(self, request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:8])
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
 
 settings = get_settings()
 
@@ -53,6 +64,7 @@ async def seed_default_data():
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION, lifespan=lifespan)
 
+app.add_middleware(RequestIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS.split(","),

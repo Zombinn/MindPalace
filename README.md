@@ -49,6 +49,8 @@ npm run dev
 | Human Override | Per-question manual score adjustment with audit trail |
 | Incremental Redecomposition | After failed exam: mastered subtasks preserved, weak areas reinforced via diff |
 | Notes (Markdown) | Goal/task/subtask context-linked notes with search |
+| FTS5 Full-Text Search | Notes search via SQLite FTS5 virtual table (<1s on 10k records) |
+| Wrong-Question Book | Cross-task aggregated wrong answers, filterable by knowledge tag |
 | Dashboard | Active goals, progress, due-today tasks, weak-point aggregation |
 | AI Config | Multi-provider (OpenAI/DeepSeek/local), per-scene routing, editable prompt templates |
 
@@ -62,7 +64,7 @@ npm run dev
 | Script test-run | CLI handler pending |
 | Script management UI | Pending |
 
-### M3 — Knowledge Accumulation (complete)
+### M3 — Knowledge Accumulation (in progress)
 
 | Feature | Status |
 |---------|--------|
@@ -118,6 +120,24 @@ Set in `backend/.env`:
 - **Redecomposition is a diff, not a wipe** — Mastered subtasks preserved and locked; only weak areas get new tasks.
 - **Scripts run in Docker sandbox** (M2) — AI-generated code never touches the host filesystem.
 - **Rubrics frozen at generation time** — Exam scoring uses the rubric generated with the questions, preventing LLM drift.
+
+## Recent Optimizations
+
+### Backend
+- **Request ID middleware** — `X-Request-ID` injected/forwarded for per-request log correlation
+- **Pydantic schema validation** — `@model_validator` checks on `GoalCreate`/`StageTaskCreate` (end_date ≥ start_date, max_delays ≥ 0)
+- **Database indexes** — Composite indexes on `stage_task(goal_id,status)`, `sub_task(stage_task_id,round)`, and 9 other hot query paths
+- **Cleaned dependencies** — Removed unused `python-jose`/`passlib`/`aiofiles`; added explicit `aiosqlite`
+- **Fixed `__import__('datetime')` anti-patterns** — Replaced with proper module-level imports
+
+### Frontend
+- **Split monolithic App.tsx** → 7 page modules + 3 shared components (ErrorBoundary, Theme, Toast)
+- **TanStack Query** — Server-state management with stale-while-revalidate, dedup, and retry
+- **AbortController timeouts** — 30s default, 120s for AI operations; clean error propagation
+- **Error boundary** — Catches unhandled render exceptions per-route with retry button
+- **API completeness** — Added `heatmap`, `weekly-report`, and `wrongbook` client endpoints
+- **Component isolation** — `useToast()` / `useTheme()` contexts extracted from inline logic
+
 
 ## License
 

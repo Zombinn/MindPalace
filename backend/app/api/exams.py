@@ -159,7 +159,7 @@ async def evaluate_exam(exam_id: int, db: AsyncSession = Depends(get_db)):
 
     # Track exam activity
     from app.api.helpers import track_activity
-    await track_activity(db, __import__('datetime').date.today(), 'exam_taken')
+    await track_activity(db, date.today(), 'exam_taken')
     await db.commit()
     return exam_to_dict(exam)
 

@@ -1,9 +1,28 @@
 const BASE = '/api'
+const DEFAULT_TIMEOUT = 30000
 
-async function request<T>(url: string, opts?: RequestInit): Promise<T> {
-  const r = await fetch(BASE + url, { headers: { 'Content-Type': 'application/json' }, ...opts })
-  if (!r.ok) { const e = await r.text(); throw new Error(e || r.statusText) }
-  return r.json()
+async function request<T>(url: string, opts?: RequestInit & { timeout?: number }): Promise<T> {
+  const controller = new AbortController()
+  const timeout = opts?.timeout ?? DEFAULT_TIMEOUT
+  const timer = setTimeout(() => controller.abort(), timeout)
+
+  try {
+    const r = await fetch(BASE + url, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...opts,
+    })
+    clearTimeout(timer)
+    if (!r.ok) {
+      const e = await r.text().catch(() => r.statusText)
+      throw new Error(e || `HTTP ${r.status}`)
+    }
+    return r.json()
+  } catch (err: any) {
+    clearTimeout(timer)
+    if (err.name === 'AbortError') throw new Error('Request timed out')
+    throw err
+  }
 }
 
 export const api = {
@@ -20,18 +39,18 @@ export const api = {
     create: (goalId: number, data: any) => request<any>(`/goals/${goalId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: number) => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
-    decompose: (id: number) => request<any>(`/tasks/${id}/decompose`, { method: 'POST' }),
+    decompose: (id: number) => request<any>(`/tasks/${id}/decompose`, { method: 'POST', timeout: 120000 }),
     confirmSubs: (taskId: number, data: any) => request<any>(`/tasks/${taskId}/subtasks:confirm`, { method: 'POST', body: JSON.stringify(data) }),
   },
   subtasks: {
     update: (id: number, data: any) => request<any>(`/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
   exams: {
-    generate: (taskId: number) => request<any>(`/tasks/${taskId}/exam`, { method: 'POST' }),
+    generate: (taskId: number) => request<any>(`/tasks/${taskId}/exam`, { method: 'POST', timeout: 120000 }),
     saveAnswers: (examId: number, data: any) => request<any>(`/exams/${examId}/answers`, { method: 'PUT', body: JSON.stringify(data) }),
-    evaluate: (examId: number) => request<any>(`/exams/${examId}/evaluate`, { method: 'POST' }),
+    evaluate: (examId: number) => request<any>(`/exams/${examId}/evaluate`, { method: 'POST', timeout: 120000 }),
     override: (qId: number, data: any) => request<any>(`/questions/${qId}/override`, { method: 'POST', body: JSON.stringify(data) }),
-    redecompose: (examId: number) => request<any>(`/exams/${examId}/redecompose`, { method: 'POST' }),
+    redecompose: (examId: number) => request<any>(`/exams/${examId}/redecompose`, { method: 'POST', timeout: 120000 }),
     applyRedecompose: (examId: number, data: any) => request<any>(`/exams/${examId}/redecompose:apply`, { method: 'POST', body: JSON.stringify(data) }),
   },
   notes: {
@@ -43,15 +62,23 @@ export const api = {
   dashboard: {
     summary: () => request<any>('/dashboard/summary'),
     weakPoints: () => request<any[]>('/dashboard/weak-points'),
+    heatmap: (days = 30) => request<any[]>(`/dashboard/heatmap?days=${days}`),
+    weeklyReport: () => request<any>('/dashboard/weekly-report'),
   },
   settings: {
     providers: () => request<any[]>('/settings/providers'),
     createProvider: (data: any) => request<any>('/settings/providers', { method: 'POST', body: JSON.stringify(data) }),
     updateProvider: (id: number, data: any) => request<any>(`/settings/providers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    pingProvider: (id: number) => request<any>(`/settings/providers/${id}/ping`, { method: 'POST' }),
+    pingProvider: (id: number) => request<any>(`/settings/providers/${id}/ping`, { method: 'POST', timeout: 15000 }),
     routes: () => request<any[]>('/settings/routes'),
     setRoute: (scene: string, data: any) => request<any>(`/settings/routes/${scene}`, { method: 'PUT', body: JSON.stringify(data) }),
     templates: () => request<any[]>('/settings/templates'),
     updateTemplate: (id: number, data: any) => request<any>(`/settings/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  },
+  wrongbook: {
+    list: (tag?: string, reviewed?: boolean) => request<any[]>(`/wrongbook${tag ? `?tag=${encodeURIComponent(tag)}` : ''}${reviewed !== undefined ? `${tag ? '&' : '?'}reviewed=${reviewed}` : ''}`),
+    review: (id: number) => request<any>(`/wrongbook/${id}`, { method: 'PATCH' }),
+    tags: () => request<[string, number][]>('/wrongbook/tags'),
+    stats: () => request<{ total: number; reviewed: number; unreviewed: number }>('/wrongbook/stats'),
   },
 }

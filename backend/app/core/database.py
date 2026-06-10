@@ -38,3 +38,23 @@ async def init_db():
                 _FTS5_INITIALIZED = True
             except Exception:
                 pass
+
+        # Performance indexes for common query patterns
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_goal_status ON goal(status)",
+            "CREATE INDEX IF NOT EXISTS idx_stage_task_goal_status ON stage_task(goal_id, status)",
+            "CREATE INDEX IF NOT EXISTS idx_stage_task_status ON stage_task(status)",
+            "CREATE INDEX IF NOT EXISTS idx_sub_task_stage_round ON sub_task(stage_task_id, round)",
+            "CREATE INDEX IF NOT EXISTS idx_exam_stage_task ON exam(stage_task_id)",
+            "CREATE INDEX IF NOT EXISTS idx_exam_question_exam ON exam_question(exam_id)",
+            "CREATE INDEX IF NOT EXISTS idx_note_goal ON note(goal_id)",
+            "CREATE INDEX IF NOT EXISTS idx_note_task ON note(stage_task_id)",
+            "CREATE INDEX IF NOT EXISTS idx_script_run_script ON script_run(script_id, started_at)",
+            "CREATE INDEX IF NOT EXISTS idx_learning_activity_date ON learning_activity(activity_date)",
+            "CREATE INDEX IF NOT EXISTS idx_wrong_question_stage ON wrong_question_book(stage_task_id)",
+        ]
+        for idx in indexes:
+            try:
+                await conn.execute(text(idx))
+            except Exception:
+                pass
