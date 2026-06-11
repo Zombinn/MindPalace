@@ -24,6 +24,7 @@ from app.api.dashboard import router as dashboard_router
 from app.api.settings import router as settings_router
 from app.api.wrongbook import router as wrongbook_router
 from app.api.career import router as career_router
+from app.api.scripts import router as scripts_router
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Inject X-Request-ID header for request correlation."""
@@ -83,19 +84,24 @@ async def lifespan(app: FastAPI):
 
 async def seed_default_data():
     async with async_session() as session:
-        count = (await session.execute(select(func.count(PromptTemplate.id)))).scalar()
-        if count and count > 0:
-            return
-        templates = [
-            PromptTemplate(scene="decompose", name="Task Decomposition", is_builtin=True, content=DEFAULT_DECOMPOSE_TEMPLATE),
-            PromptTemplate(scene="exam_gen", name="Exam Generation", is_builtin=True, content=DEFAULT_EXAM_GEN_TEMPLATE),
-            PromptTemplate(scene="exam_eval", name="Exam Evaluation", is_builtin=True, content=DEFAULT_EXAM_EVAL_TEMPLATE),
-            PromptTemplate(scene="redecompose", name="Redecomposition", is_builtin=True, content=DEFAULT_REDECOMPOSE_TEMPLATE),
-            PromptTemplate(scene="script_gen", name="Script Generation", is_builtin=True, content=DEFAULT_SCRIPT_GEN_TEMPLATE),
-        ]
-        session.add_all(templates)
+        builtins = {
+            "decompose": ("Task Decomposition", DEFAULT_DECOMPOSE_TEMPLATE),
+            "exam_gen": ("Exam Generation", DEFAULT_EXAM_GEN_TEMPLATE),
+            "exam_eval": ("Exam Evaluation", DEFAULT_EXAM_EVAL_TEMPLATE),
+            "redecompose": ("Redecomposition", DEFAULT_REDECOMPOSE_TEMPLATE),
+            "script_gen": ("Script Generation", DEFAULT_SCRIPT_GEN_TEMPLATE),
+        }
+        for scene, (name, tmpl_content) in builtins.items():
+            existing = (await session.execute(
+                select(PromptTemplate).where(PromptTemplate.scene == scene, PromptTemplate.is_builtin == True)
+            )).scalar_one_or_none()
+            if existing:
+                existing.content = tmpl_content
+                existing.name = name
+            else:
+                session.add(PromptTemplate(scene=scene, name=name, is_builtin=True, content=tmpl_content))
         await session.commit()
-        logger.info("Seeded default prompt templates")
+        logger.info("Synced default prompt templates")
 
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION, lifespan=lifespan)
@@ -117,6 +123,7 @@ app.include_router(dashboard_router)
 app.include_router(settings_router)
 app.include_router(wrongbook_router)
 app.include_router(career_router)
+app.include_router(scripts_router)
 
 
 @app.get("/api/health")

@@ -71,6 +71,7 @@ class AIGateway:
         self._providers: dict[int, AIProvider] = {}
         self._routes: dict[AIScene, AISceneRoute] = {}
         self._templates: dict[str, str] = {}
+        self._default_provider_id = None
         self._jinja = jinja2.Environment()
         self._default_client = AsyncOpenAI(
             api_key=settings.OPENAI_API_KEY or "sk-placeholder",
@@ -89,6 +90,8 @@ class AIGateway:
                 id=p.id, name=p.name, base_url=p.base_url,
                 api_key=decrypt(p.api_key_enc), default_model=p.default_model,
             )
+            if p.is_default:
+                self._default_provider_id = p.id
 
         routes = (await session.execute(select(RouteModel))).scalars().all()
         self._routes = {}
@@ -105,8 +108,12 @@ class AIGateway:
     def get_route(self, scene: AIScene) -> AISceneRoute:
         if scene in self._routes:
             return self._routes[scene]
+        default_provider = self._providers.get(self._default_provider_id) if self._default_provider_id else None
         return AISceneRoute(
-            scene=scene, provider_id=0, model=settings.DEFAULT_MODEL, temperature=0.7,
+            scene=scene,
+            provider_id=self._default_provider_id or 0,
+            model=default_provider.default_model if default_provider else settings.DEFAULT_MODEL,
+            temperature=0.7,
         )
 
     def get_client(self, route: AISceneRoute) -> AsyncOpenAI:
@@ -166,9 +173,10 @@ class AIGateway:
                 )
             except (ValidationError, json.JSONDecodeError) as e:
                 logger.warning(f"Structured output validation failed (attempt {attempt+1}): {e}")
-                prompt = prompt + f"\n\nThe previous response had errors: {e}. Please return valid JSON matching the schema."
                 if attempt == 2:
-                    raise AIStructuredOutputError(f"Failed to get valid structured output after 3 attempts: {e}")
+                    logger.warning("Structured output failed after 3 attempts, falling back to raw content")
+                    break
+                prompt = prompt + f"\n\nThe previous response had errors: {e}. Please return valid JSON matching the schema."
 
         lat = (time.time() - t0) * 1000
         import asyncio
@@ -180,43 +188,37 @@ class AIGateway:
 
 
 def extract_json(text: str) -> str:
-    """Extract JSON from LLM output, handling markdown fences."""
-    m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
+    """Extract JSON from LLM output, handling markdown fences and multi-object responses."""
+    m = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if m:
-        return m.group(1).strip()
-    m = re.search(r'\{.*\}', text, re.DOTALL)
-    if m:
-        return m.group(0)
-    return text
-
-
-
-    async def stream_call(self, scene: AIScene, variables: dict):
-        """Stream LLM output via SSE chunks. Yields (content_delta, is_done)."""
-        route = self.get_route(scene)
-        prompt = self.render_template(scene, variables)
-        client = self.get_client(route)
-        model = route.model or settings.DEFAULT_MODEL
-        t0 = time.time()
-        full = ""
-        try:
-            stream = await client.chat.completions.create(
-                model=model, messages=[{"role": "user", "content": prompt}],
-                temperature=route.temperature, stream=True,
-            )
-            async for chunk in stream:
-                delta = chunk.choices[0].delta.content or ""
-                if delta:
-                    full += delta
-                    yield delta, False
-        except Exception as e:
-            logger.error(f"Stream error: {e}")
-            yield f"\n\n[Error: {e}]", True
-            return
-        lat = (time.time() - t0) * 1000
-        import asyncio
-        asyncio.ensure_future(_log_ai_call(scene.value, model, prompt, full, {"prompt_tokens": 0, "completion_tokens": 0}, lat, True))
-        yield "", True  # done signal
+        text = m.group(1).strip()
+    s = text.find("{")
+    if s == -1:
+        return text
+    # Greedy: first { to last }
+    e = text.rfind("}")
+    inner = text[s:e+1]
+    # Handle multiple top-level JSON objects: wrap in array
+    if inner.count("{") > inner.count("}") // 2 + 1:
+        objs = []
+        i = 0
+        while i < len(inner):
+            if inner[i] == "{":
+                depth, j = 0, i
+                while j < len(inner):
+                    if inner[j] == "{": depth += 1
+                    elif inner[j] == "}":
+                        depth -= 1
+                        if depth == 0:
+                            objs.append(inner[i:j+1])
+                            break
+                    j += 1
+                i = j + 1
+            else:
+                i += 1
+        if len(objs) > 1:
+            inner = "[" + ",".join(objs) + "]"
+    return inner
 
 # Singleton
 ai_gateway = AIGateway()

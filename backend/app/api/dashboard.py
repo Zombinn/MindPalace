@@ -11,13 +11,35 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 @router.get("/summary")
 async def dashboard_summary(db: AsyncSession = Depends(get_db)):
-    goals = (await db.execute(select(Goal).where(Goal.status.in_(["pending", "active"])))).scalars().all()
-    tasks = (await db.execute(select(StageTask).where(StageTask.status.notin_(["passed", "force_closed"])))).scalars().all()
+    from app.models.domain import SubTask, Script, ScriptRun
     today = date.today()
+
+    # Goal stats
+    goals_all = (await db.execute(select(func.count(Goal.id)))).scalar() or 0
+    goals_active = (await db.execute(select(func.count(Goal.id)).where(Goal.status.in_(["pending", "active"])))).scalar() or 0
+    goals_done = (await db.execute(select(func.count(Goal.id)).where(Goal.status == "done"))).scalar() or 0
+
+    # Task stats
+    tasks_all = (await db.execute(select(func.count(StageTask.id)))).scalar() or 0
+    tasks = (await db.execute(select(StageTask).where(StageTask.status.notin_(["passed", "force_closed"])))).scalars().all()
     due_tasks = [t for t in tasks if t.end_date and t.end_date <= today and t.status != "passed"]
     in_progress = [t for t in tasks if t.status == "in_progress"]
     exam_pending = [t for t in tasks if t.status == "exam_pending"]
+    tasks_passed = (await db.execute(select(func.count(StageTask.id)).where(StageTask.status == "passed"))).scalar() or 0
 
+    # Sub-task stats
+    subs_all = (await db.execute(select(func.count(SubTask.id)))).scalar() or 0
+    subs_done = (await db.execute(select(func.count(SubTask.id)).where(SubTask.status.in_(["done", "mastered"])))).scalar() or 0
+    subs_todo = (await db.execute(select(func.count(SubTask.id)).where(SubTask.status == "todo"))).scalar() or 0
+
+    # Script stats
+    scripts_total = (await db.execute(select(func.count(Script.id)))).scalar() or 0
+    scripts_active = (await db.execute(select(func.count(Script.id)).where(Script.enabled == True))).scalar() or 0
+    runs_total = (await db.execute(select(func.count(ScriptRun.id)))).scalar() or 0
+    runs_success = (await db.execute(select(func.count(ScriptRun.id)).where(ScriptRun.status == "success"))).scalar() or 0
+    runs_failed = (await db.execute(select(func.count(ScriptRun.id)).where(ScriptRun.status == "failed"))).scalar() or 0
+
+    # Weak points
     recent_exams = (await db.execute(select(Exam).order_by(Exam.created_at.desc()).limit(20))).scalars().all()
     weak_tags: dict[str, int] = {}
     for exam in recent_exams:
@@ -28,10 +50,22 @@ async def dashboard_summary(db: AsyncSession = Depends(get_db)):
                     weak_tags[tag] = weak_tags.get(tag, 0) + 1
 
     return {
-        "goals_active": len(goals),
+        "goals_total": goals_all,
+        "goals_active": goals_active,
+        "goals_done": goals_done,
+        "tasks_total": tasks_all,
         "tasks_in_progress": len(in_progress),
+        "tasks_passed": tasks_passed,
         "tasks_exam_pending": len(exam_pending),
         "tasks_due_today": len(due_tasks),
+        "subs_total": subs_all,
+        "subs_done": subs_done,
+        "subs_todo": subs_todo,
+        "scripts_total": scripts_total,
+        "scripts_active": scripts_active,
+        "runs_total": runs_total,
+        "runs_success": runs_success,
+        "runs_failed": runs_failed,
         "delay_count": sum(t.delay_count or 0 for t in tasks),
         "weak_points": sorted(weak_tags.items(), key=lambda x: -x[1])[:10],
         "due_tasks": [task_to_dict(t) for t in due_tasks[:5]],

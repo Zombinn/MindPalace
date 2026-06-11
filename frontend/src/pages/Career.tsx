@@ -3,25 +3,46 @@ import { Link } from 'react-router-dom'
 import { Plus, X, ChevronRight, ExternalLink, Briefcase, Inbox, BarChart3 } from 'lucide-react'
 import { api } from '../api'
 import { formatDate, today, type ViewProps } from '../utils'
+import { useLocale } from '../i18n'
 
-const STATES = [
-  { id: 'evaluated', label: 'Evaluated', color: 'bg-slate-200 dark:bg-slate-700' },
-  { id: 'applied', label: 'Applied', color: 'bg-blue-200 dark:bg-blue-900' },
-  { id: 'responded', label: 'Responded', color: 'bg-amber-200 dark:bg-amber-900' },
-  { id: 'interview', label: 'Interview', color: 'bg-purple-200 dark:bg-purple-900' },
-  { id: 'offer', label: 'Offer', color: 'bg-emerald-200 dark:bg-emerald-900' },
-  { id: 'rejected', label: 'Rejected', color: 'bg-red-200 dark:bg-red-900' },
-  { id: 'discarded', label: 'Discarded', color: 'bg-neutral-200 dark:bg-neutral-700' },
-  { id: 'skip', label: 'SKIP', color: 'bg-neutral-100 dark:bg-neutral-800' },
-]
+function getCareerStates(t: (k: string) => string) {
+  const raw = JSON.parse(t('career.careerStates'))
+  return raw.map((s: any) => ({
+    ...s,
+    color: (() => {
+      const map: Record<string, string> = {
+        evaluated: 'bg-slate-200 dark:bg-slate-700',
+        applied: 'bg-blue-200 dark:bg-blue-900',
+        responded: 'bg-amber-200 dark:bg-amber-900',
+        interview: 'bg-purple-200 dark:bg-purple-900',
+        offer: 'bg-emerald-200 dark:bg-emerald-900',
+        rejected: 'bg-red-200 dark:bg-red-900',
+        discarded: 'bg-neutral-200 dark:bg-neutral-700',
+        skip: 'bg-neutral-100 dark:bg-neutral-800',
+      }
+      return map[s.id] ?? 'bg-gray-100'
+    })(),
+  }))
+}
 
-function statusColor(status: string) {
-  const s = STATES.find(x => x.id === status)
-  return s?.color ?? 'bg-gray-100'
+function statusColor(id: string) {
+  const map: Record<string, string> = {
+    evaluated: 'bg-slate-200 dark:bg-slate-700',
+    applied: 'bg-blue-200 dark:bg-blue-900',
+    responded: 'bg-amber-200 dark:bg-amber-900',
+    interview: 'bg-purple-200 dark:bg-purple-900',
+    offer: 'bg-emerald-200 dark:bg-emerald-900',
+    rejected: 'bg-red-200 dark:bg-red-900',
+    discarded: 'bg-neutral-200 dark:bg-neutral-700',
+    skip: 'bg-neutral-100 dark:bg-neutral-800',
+  }
+  return map[id] ?? 'bg-gray-100'
 }
 
 
 export default function Career({ showToast }: ViewProps) {
+  const { t } = useLocale()
+  const STATES = getCareerStates(t)
   const [tab, setTab] = useState<'board' | 'inbox'>('board')
   const [jobs, setJobs] = useState<any[]>([])
   const [pipeline, setPipeline] = useState<any[]>([])
@@ -36,7 +57,7 @@ export default function Career({ showToast }: ViewProps) {
         api.career.jobs(), api.career.pipeline(), api.career.stats()
       ])
       setJobs(j); setPipeline(p); setStats(s)
-    } catch { showToast('Failed to load career data') }
+    } catch { showToast(t('career.loadFailed')) }
   }
 
   useEffect(() => { load() }, [])
@@ -44,13 +65,12 @@ export default function Career({ showToast }: ViewProps) {
   const moveJob = async (jobId: number, newStatus: string) => {
     const job = jobs.find(j => j.id === jobId)
     if (!job || job.status === newStatus) return
-    // Optimistic update
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: newStatus } : j))
     try {
       await api.career.updateJob(jobId, { status: newStatus })
     } catch {
       setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: job.status } : j))
-      showToast('Failed to update status')
+      showToast(t('career.updateFailed'))
     }
   }
 
@@ -67,22 +87,22 @@ export default function Career({ showToast }: ViewProps) {
   }
 
   const deleteJob = async (id: number) => {
-    if (!confirm('Delete this application?')) return
-    try { await api.career.deleteJob(id); load() } catch { showToast('Delete failed') }
+    if (!confirm(t('career.deleteConfirm'))) return
+    try { await api.career.deleteJob(id); load() } catch { showToast(t('career.deleteFailed')) }
   }
 
   const addPipelineItem = async () => {
-    const url = prompt('Job posting URL:')
+    const url = prompt(t('career.jobUrlPrompt'))
     if (!url?.trim()) return
     try {
       await api.career.addPipelineItem({ url: url.trim() })
       load()
-      showToast('Added to pipeline inbox')
-    } catch { showToast('Failed to add') }
+      showToast(t('career.addedToInbox'))
+    } catch { showToast(t('career.addFailed')) }
   }
 
   const removePipelineItem = async (id: number) => {
-    try { await api.career.deletePipelineItem(id); load() } catch { showToast('Failed') }
+    try { await api.career.deletePipelineItem(id); load() } catch { showToast(t('common.saveFailed')) }
   }
 
   return (
@@ -90,22 +110,22 @@ export default function Career({ showToast }: ViewProps) {
       <div className="page-header">
         <div className="flex items-center justify-between">
           <div>
-            <div className="page-title">Career Pipeline</div>
+            <div className="page-title">{t('career.title')}</div>
             <div className="page-subtitle">
-              {stats ? `${stats.total} applications · ${stats.pipeline_pending} inbox` : 'Loading...'}
+              {stats ? t('career.stats', { n: stats.total, p: stats.pipeline_pending }) : t('common.loading')}
             </div>
           </div>
           <div className="flex gap-2">
             <div className="flex rounded-lg border border-[var(--border)]">
-              <button className={`btn btn-sm rounded-r-none border-0 ${tab === 'board' ? 'bg-[var(--bg3)]' : 'bg-transparent'}`} onClick={() => setTab('board')}><BarChart3 size={14} /> Board</button>
-              <button className={`btn btn-sm rounded-l-none border-l border-[var(--border)] ${tab === 'inbox' ? 'bg-[var(--bg3)]' : 'bg-transparent'}`} onClick={() => setTab('inbox')}><Inbox size={14} /> Inbox ({pipeline.filter((p:any) => p.status === 'pending').length})</button>
+              <button className={`btn btn-sm rounded-r-none border-0 ${tab === 'board' ? 'bg-[var(--bg3)]' : 'bg-transparent'}`} onClick={() => setTab('board')}><BarChart3 size={14} /> {t('career.board')}</button>
+              <button className={`btn btn-sm rounded-l-none border-l border-[var(--border)] ${tab === 'inbox' ? 'bg-[var(--bg3)]' : 'bg-transparent'}`} onClick={() => setTab('inbox')}><Inbox size={14} /> {t('career.inbox', { n: pipeline.filter((p:any) => p.status === 'pending').length })}</button>
             </div>
-            <button className="btn btn-primary btn-sm" onClick={() => { setEditJob(null); setShowForm(true) }}><Plus size={14} /> Add Job</button>
+            <button className="btn btn-primary btn-sm" onClick={() => { setEditJob(null); setShowForm(true) }}><Plus size={14} /> {t('career.addJob')}</button>
           </div>
         </div>
         {stats && (
           <div className="flex gap-4 mt-4 flex-wrap">
-            {STATES.map(s => {
+            {STATES.map((s: any) => {
               const count = stats.by_status?.[s.id] || 0
               return count > 0 ? (
                 <div key={s.id} className="flex items-center gap-1.5 text-xs">
@@ -116,7 +136,7 @@ export default function Career({ showToast }: ViewProps) {
               ) : null
             })}
             <div className="text-xs text-[var(--text3)] ml-auto">
-              {stats.avg_score != null ? `Avg score: ${stats.avg_score}/5` : 'No scores yet'}
+              {stats.avg_score != null ? t('career.avgScore', { n: stats.avg_score }) : t('career.noScores')}
             </div>
           </div>
         )}
@@ -126,10 +146,10 @@ export default function Career({ showToast }: ViewProps) {
         {tab === 'inbox' ? (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-sm">Pipeline Inbox — Pending URLs</h3>
-              <button className="btn btn-sm" onClick={addPipelineItem}><Plus size={14} /> Add URL</button>
+              <h3 className="font-semibold text-sm">{t('career.inboxTitle')}</h3>
+              <button className="btn btn-sm" onClick={addPipelineItem}><Plus size={14} /> {t('career.addUrl')}</button>
             </div>
-            {pipeline.length === 0 && <div className="empty-state"><div className="empty-state-icon">📥</div><div>No URLs in pipeline. Paste job posting links to process them.</div></div>}
+            {pipeline.length === 0 && <div className="empty-state"><div className="empty-state-icon">📥</div><div>{t('career.emptyInbox')}</div></div>}
             {pipeline.map((p: any) => (
               <div key={p.id} className="goal-card">
                 <div className="flex justify-between items-start">
@@ -148,9 +168,8 @@ export default function Career({ showToast }: ViewProps) {
             ))}
           </div>
         ) : (
-          /* Kanban Board */
           <div className="kanban-board">
-            {STATES.map(state => {
+            {STATES.map((state: any) => {
               const columnJobs = jobs.filter((j: any) => j.status === state.id)
               return (
                 <div
@@ -178,7 +197,7 @@ export default function Career({ showToast }: ViewProps) {
                         <div className="text-xs text-[var(--text2)] mt-0.5">{job.role}</div>
                         <div className="flex items-center gap-2 mt-2">
                           {job.score != null && <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${job.score >= 4 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : job.score >= 2.5 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'}`}>{job.score}/5</span>}
-                          {job.tags?.map((t: string) => <span key={t} className="text-xs bg-[var(--bg3)] px-1 rounded">{t}</span>)}
+                          {job.tags?.map((tg: string) => <span key={tg} className="text-xs bg-[var(--bg3)] px-1 rounded">{tg}</span>)}
                           <button className="btn btn-ghost btn-sm ml-auto p-0 h-5 w-5" onClick={e => { e.stopPropagation(); deleteJob(job.id) }}><X size={12} /></button>
                         </div>
                       </div>
@@ -208,6 +227,7 @@ export default function Career({ showToast }: ViewProps) {
 }
 
 function JobForm({ job, onClose, onSaved, showToast }: { job?: any; onClose: () => void; onSaved: () => void; showToast: (m: string) => void }) {
+  const { t } = useLocale()
   const [company, setCompany] = useState(job?.company || '')
   const [role, setRole] = useState(job?.role || '')
   const [url, setUrl] = useState(job?.url || '')
@@ -219,46 +239,46 @@ function JobForm({ job, onClose, onSaved, showToast }: { job?: any; onClose: () 
   const [appliedDate, setAppliedDate] = useState(job?.applied_date || '')
 
   const save = async () => {
-    if (!company.trim()) return showToast('Company name required')
+    if (!company.trim()) return showToast(t('career.companyRequired'))
     const data: any = {
       company: company.trim(), role: role.trim(), url: url.trim(),
       status, location: location.trim(), notes, applied_date: appliedDate || null,
-      tags: tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+      tags: tags.split(',').map((tg: string) => tg.trim()).filter(Boolean),
     }
     if (score && !isNaN(Number(score))) data.score = Number(score)
     try {
       if (job) await api.career.updateJob(job.id, data)
       else await api.career.createJob(data)
       onSaved()
-    } catch { showToast('Save failed') }
+    } catch { showToast(t('common.saveFailed')) }
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-        <div className="modal-header"><span className="font-semibold">{job ? 'Edit' : 'Add'} Job</span><button onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-header"><span className="font-semibold">{job ? t('career.editJob') : t('career.addJobTitle')}</span><button onClick={onClose}><X size={16} /></button></div>
         <div className="modal-body">
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Company *</label><input className="form-input" value={company} onChange={e => setCompany(e.target.value)} placeholder="Acme Corp" /></div>
-            <div className="form-group"><label className="form-label">Role</label><input className="form-input" value={role} onChange={e => setRole(e.target.value)} placeholder="Senior ML Engineer" /></div>
+            <div className="form-group"><label className="form-label">{t('career.company')} *</label><input className="form-input" value={company} onChange={e => setCompany(e.target.value)} placeholder="Acme Corp" /></div>
+            <div className="form-group"><label className="form-label">{t('career.role')}</label><input className="form-input" value={role} onChange={e => setRole(e.target.value)} placeholder="Senior ML Engineer" /></div>
           </div>
-          <div className="form-group"><label className="form-label">URL</label><input className="form-input" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://jobs.example.com/..." /></div>
+          <div className="form-group"><label className="form-label">{t('career.url')}</label><input className="form-input" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://jobs.example.com/..." /></div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Status</label>
+            <div className="form-group"><label className="form-label">{t('common.status')}</label>
               <select className="form-input" value={status} onChange={e => setStatus(e.target.value)}>
-                {STATES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                {getCareerStates(t).map((s: any) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
-            <div className="form-group"><label className="form-label">Score (0-5)</label><input className="form-input" type="number" min="0" max="5" step="0.5" value={score} onChange={e => setScore(e.target.value)} /></div>
+            <div className="form-group"><label className="form-label">{t('career.score')}</label><input className="form-input" type="number" min="0" max="5" step="0.5" value={score} onChange={e => setScore(e.target.value)} /></div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Location</label><input className="form-input" value={location} onChange={e => setLocation(e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Applied Date</label><input type="date" className="form-input" value={appliedDate} onChange={e => setAppliedDate(e.target.value)} /></div>
+            <div className="form-group"><label className="form-label">{t('career.location')}</label><input className="form-input" value={location} onChange={e => setLocation(e.target.value)} /></div>
+            <div className="form-group"><label className="form-label">{t('career.appliedDate')}</label><input type="date" className="form-input" value={appliedDate} onChange={e => setAppliedDate(e.target.value)} /></div>
           </div>
-          <div className="form-group"><label className="form-label">Tags (comma-separated)</label><input className="form-input" value={tags} onChange={e => setTags(e.target.value)} placeholder="AI/ML, remote, startup" /></div>
-          <div className="form-group"><label className="form-label">Notes</label><textarea className="form-textarea" value={notes} onChange={e => setNotes(e.target.value)} rows={3} /></div>
+          <div className="form-group"><label className="form-label">{t('career.tagsHint')}</label><input className="form-input" value={tags} onChange={e => setTags(e.target.value)} placeholder="AI/ML, remote, startup" /></div>
+          <div className="form-group"><label className="form-label">{t('career.notes')}</label><textarea className="form-textarea" value={notes} onChange={e => setNotes(e.target.value)} rows={3} /></div>
         </div>
-        <div className="modal-footer"><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={save}>{job ? 'Update' : 'Add'}</button></div>
+        <div className="modal-footer"><button className="btn btn-ghost" onClick={onClose}>{t('common.cancel')}</button><button className="btn btn-primary" onClick={save}>{job ? t('common.update') : t('common.add')}</button></div>
       </div>
     </div>
   )

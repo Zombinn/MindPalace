@@ -1,5 +1,5 @@
 from datetime import datetime as dt
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,18 +96,39 @@ async def decompose_task(task_id: int, db: AsyncSession = Depends(get_db)):
     existing = (await db.execute(select(SubTask).where(SubTask.stage_task_id == task_id, SubTask.status != "mastered"))).scalars().all()
 
     await ai_gateway.reload(db)
-    result = await ai_gateway.call(
-        AIScene.decompose,
-        {
-            "objective": t.objective or t.title,
-            "title": t.title,
-            "start_date": str(t.start_date or ""),
-            "end_date": str(t.end_date or ""),
-            "existing_subtasks": "\n".join(f"- {s.title} [{s.status}]" for s in existing),
-        },
-        DecomposeResponse,
-    )
-    return {"draft": result.parsed.model_dump() if result.parsed else {"subtasks": []}, "raw": result.content}
+    try:
+        result = await ai_gateway.call(
+            AIScene.decompose,
+            {
+                "objective": t.objective or t.title,
+                "title": t.title,
+                "start_date": str(t.start_date or ""),
+                "end_date": str(t.end_date or ""),
+                "existing_subtasks": "\n".join(f"- {s.title} [{s.status}]" for s in existing),
+            },
+            DecomposeResponse,
+        )
+        draft = result.parsed.model_dump() if result.parsed else {"subtasks": []}
+        # Fallback: try to parse raw content if structured output was empty
+        if not draft.get("subtasks") and result.content:
+            from app.core.ai_gateway import extract_json
+            try:
+                raw_json = extract_json(result.content)
+                # Try standard format first
+                try:
+                    fallback = DecomposeResponse.model_validate_json(raw_json)
+                    draft = fallback.model_dump()
+                except Exception:
+                    # Try array format: [{...}, {...}] -> wrap as {"subtasks": [...]}
+                    import json as _json
+                    arr = _json.loads(raw_json)
+                    if isinstance(arr, list):
+                        draft = {"subtasks": arr, "rationale": ""}
+            except Exception:
+                pass
+        return {"draft": draft, "raw": result.content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/tasks/{task_id}/decompose/stream")
 async def decompose_task_stream(task_id: int, db: AsyncSession = Depends(get_db)):

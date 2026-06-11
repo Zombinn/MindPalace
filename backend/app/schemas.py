@@ -7,13 +7,13 @@ class GoalCreate(BaseModel):
     name: str
     description: Optional[str] = ""
     start_date: date
-    end_date: date
+    end_date: Optional[date] = None
     priority: str = "P1"
     status: str = "pending"
 
     @model_validator(mode="after")
     def check_dates(self):
-        if self.start_date and self.end_date and self.start_date > self.end_date:
+        if self.end_date and self.start_date and self.start_date > self.end_date:
             raise ValueError("end_date must not be earlier than start_date")
         return self
 
@@ -37,7 +37,7 @@ class StageTaskCreate(BaseModel):
 
     @model_validator(mode="after")
     def check_dates(self):
-        if self.start_date and self.end_date and self.start_date > self.end_date:
+        if self.end_date and self.start_date and self.start_date > self.end_date:
             raise ValueError("end_date must not be earlier than start_date")
         if self.max_delays < 0:
             raise ValueError("max_delays must be >= 0")
@@ -139,6 +139,9 @@ class DecomposeSubTask(BaseModel):
     content: str = ""
     knowledge_tags: list[str] = Field(default_factory=list)
     est_hours: Optional[float] = None
+    key_points: list[str] = Field(default_factory=list)
+    practice_questions: list[str] = Field(default_factory=list)
+    ref_links: list[str] = Field(default_factory=list)
 
 
 class DecomposeResponse(BaseModel):

@@ -63,7 +63,7 @@ def task_to_dict(t: StageTask) -> dict:
 
 
 def subtask_to_dict(s: SubTask) -> dict:
-    return _fmt(s, ["id", "stage_task_id", "title", "content", "knowledge_tags", "order_index", "est_hours", "status", "origin", "round", "locked", "done_at"], {"done_at": str})
+    return _fmt(s, ["id", "stage_task_id", "title", "content", "knowledge_tags", "key_points", "practice_questions", "ref_links", "order_index", "est_hours", "status", "origin", "round", "locked", "done_at"], {"done_at": str})
 
 
 def exam_to_dict(e: Exam) -> dict:

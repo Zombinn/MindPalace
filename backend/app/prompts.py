@@ -1,4 +1,4 @@
-DEFAULT_DECOMPOSE_TEMPLATE = '''You are a learning task decomposition expert. Break down the following learning objective into concrete, actionable subtasks.
+DEFAULT_DECOMPOSE_TEMPLATE = '''You are a learning curriculum designer. Break down the learning objective into a structured study plan with rich content.
 
 Learning Objective: {{ objective }}
 Title: {{ title }}
@@ -7,8 +7,16 @@ End Date: {{ end_date }}
 {% if existing_subtasks %}Existing Subtasks (preserve mastered):
 {{ existing_subtasks }}{% endif %}
 
-For each subtask provide: title, content (2-3 sentences), knowledge_tags (array), est_hours.
-Subtasks ordered by dependency. Each 2-8 hours. Total fits date range.
+For each subtask provide JSON with these fields:
+- title: concise topic name
+- content: detailed study notes in Markdown (key concepts, formulas, code snippets, explanations)
+- key_points: 3-5 bullet points of the most important takeaways
+- knowledge_tags: relevant topic tags (array)
+- practice_questions: 2-3 self-test questions with answers (array of "Q: ... A: ...")
+- ref_links: 2-3 recommended learning resources (URLs, array)
+- est_hours: estimated hours
+
+Each subtask should be a complete self-contained learning unit. Subtasks ordered by dependency. Each 2-8 hours. Total fits date range.
 Return valid JSON only.'''
 
 DEFAULT_EXAM_GEN_TEMPLATE = '''You are an exam designer for mastery-based learning.

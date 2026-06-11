@@ -6,22 +6,22 @@ echo "=== MindPalace Personal Growth OS ==="
 echo ""
 
 # Backend
-echo "[1/2] Starting backend on http://localhost:8000 ..."
+echo "[1/2] Starting backend on http://localhost:8001 ..."
 cd "$(dirname "$0")/backend"
 source venv/bin/activate
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload &
 BACKEND_PID=$!
 
 # Frontend
 echo "[2/2] Starting frontend on http://localhost:5173 ..."
 cd ../frontend
-npm run dev &
+npm run dev -- --host 0.0.0.0 &
 FRONTEND_PID=$!
 
 echo ""
-echo "Backend:  http://localhost:8000"
+echo "Backend:  http://localhost:8001"
 echo "Frontend: http://localhost:5173"
-echo "API Docs: http://localhost:8000/docs"
+echo "API Docs: http://localhost:8001/docs"
 echo ""
 echo "Press Ctrl+C to stop both servers"
 

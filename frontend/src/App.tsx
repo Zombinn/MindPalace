@@ -1,9 +1,10 @@
 import React from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import { Home, Calendar, BookOpen, Settings, Sun, Moon, Menu, Briefcase, AlertCircle, Code } from 'lucide-react'
+import { Home, Calendar, BookOpen, Settings, Sun, Moon, Menu, Briefcase, AlertCircle, Code, Languages } from 'lucide-react'
 import { ToastProvider, useToast } from './components/Toast'
 import { ThemeProvider, useTheme } from './components/Theme'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { LocaleProvider, useLocale } from './i18n'
 
 import Dashboard from './pages/Dashboard'
 import GoalList from './pages/GoalList'
@@ -17,17 +18,18 @@ import WrongBook from './pages/WrongBook'
 import Scripts from './pages/Scripts'
 
 const NAV = [
-  { path: '/', label: 'Dashboard', icon: Home },
-  { path: '/goals', label: 'Goals', icon: Calendar },
-  { path: '/notes', label: 'Notes', icon: BookOpen },
-  { path: '/settings', label: 'Settings', icon: Settings },
-  { path: '/career', label: 'Career', icon: Briefcase },
-  { path: '/wrongbook', label: 'Wrong Book', icon: AlertCircle },
-  { path: '/scripts', label: 'Scripts', icon: Code },
+  { path: '/', labelKey: 'nav.dashboard', icon: Home },
+  { path: '/goals', labelKey: 'nav.goals', icon: Calendar },
+  { path: '/notes', labelKey: 'nav.notes', icon: BookOpen },
+  { path: '/settings', labelKey: 'nav.settings', icon: Settings },
+  { path: '/career', labelKey: 'nav.career', icon: Briefcase },
+  { path: '/wrongbook', labelKey: 'nav.wrongbook', icon: AlertCircle },
+  { path: '/scripts', labelKey: 'nav.scripts', icon: Code },
 ]
 
 function AppShell() {
   const { dark, toggle } = useTheme()
+  const { t, locale, setLocale } = useLocale()
   const { showToast } = useToast()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
@@ -43,11 +45,19 @@ function AppShell() {
             <Link key={n.path} to={n.path}
               className={`nav-item${location.pathname === n.path ? ' active' : ''}`}
               onClick={() => setSidebarOpen(false)}>
-              <n.icon size={18} />{n.label}
+              <n.icon size={18} />{t(n.labelKey)}
             </Link>
           ))}
         </nav>
         <div className="sidebar-footer">
+          <button
+            onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
+            className="btn btn-ghost btn-sm"
+            title={locale === 'en' ? '切换到中文' : 'Switch to English'}
+          >
+            <Languages size={16} />
+            <span className="text-xs ml-1">{locale === 'en' ? '中文' : 'EN'}</span>
+          </button>
           <button onClick={toggle} className="btn btn-ghost btn-sm">
             {dark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
@@ -80,10 +90,12 @@ function AppShell() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <AppShell />
-      </ToastProvider>
-    </ThemeProvider>
+    <LocaleProvider>
+      <ThemeProvider>
+        <ToastProvider>
+          <AppShell />
+        </ToastProvider>
+      </ThemeProvider>
+    </LocaleProvider>
   )
 }

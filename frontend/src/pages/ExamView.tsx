@@ -3,9 +3,11 @@ import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom'
 import { Home, Calendar, BookOpen, Settings, Plus, Edit3, Check, Circle, AlertTriangle, X, Sun, Moon, Menu, ChevronRight } from 'lucide-react'
 import { api } from '../api'
 import { formatDate, today, type ViewProps } from '../utils'
+import { useLocale } from '../i18n'
 
 
 export default function ExamView({ showToast }: ViewProps) {
+  const { t } = useLocale()
   const { id } = useParams()
   const navigate = useNavigate()
   const [exam, setExam] = useState<any>(null)
@@ -21,7 +23,7 @@ export default function ExamView({ showToast }: ViewProps) {
         setExam(e)
         api.exams.generate(Number(id)).then((r: any) => setQuestions(r.questions || []))
       }
-    }).catch(() => showToast('Failed to load'))
+    }).catch(() => showToast(t('common.loadFailed')))
   }, [id])
 
   const submit = async () => {
@@ -30,28 +32,28 @@ export default function ExamView({ showToast }: ViewProps) {
       await api.exams.saveAnswers(Number(id), { answers })
       const r = await api.exams.evaluate(Number(id))
       setResult(r)
-    } catch { showToast('Evaluation failed') }
+    } catch { showToast(t('exam.evalFailed')) }
     setEvaluating(false)
   }
 
-  if (!exam) return <div className="page-body"><div className="empty-state">Loading exam...</div></div>
+  if (!exam) return <div className="page-body"><div className="empty-state">{t('exam.loading')}</div></div>
 
   return (
     <>
       <div className="page-header">
-        <div className="page-title">Exam</div>
-        <div className="page-subtitle">Status: {exam.status} {exam.total_score != null ? `· Score: ${exam.total_score}` : ''} {exam.passed ? '· Passed' : exam.passed === false ? '· Not Passed' : ''}</div>
+        <div className="page-title">{t('exam.title')}</div>
+        <div className="page-subtitle">{t('exam.status')}: {exam.status} {exam.total_score != null ? `· ${t('exam.score')}: ${exam.total_score}` : ''} {exam.passed ? `· ${t('exam.passed')}` : exam.passed === false ? `· ${t('exam.notPassed')}` : ''}</div>
       </div>
       <div className="page-body">
         {result ? (
           <div>
             <div className={`card mb-4 ${result.passed ? 'border-[var(--accent)]' : 'border-[var(--danger)]'}`}>
-              <h3 className="font-semibold">{result.passed ? 'Exam Passed!' : 'Exam Not Passed'}</h3>
-              <p className="text-sm mt-1">Score: {result.total_score} / Pass: {result.pass_score}</p>
+              <h3 className="font-semibold">{result.passed ? t('exam.passed') : t('exam.notPassed')}</h3>
+              <p className="text-sm mt-1">{t('exam.score')}: {result.total_score} / {t('exam.passScore')}: {result.pass_score}</p>
               {result.ai_summary && <p className="text-sm text-[var(--text2)] mt-2">{result.ai_summary}</p>}
             </div>
             <div className="flex gap-2">
-              <button className="btn" onClick={() => navigate(`/tasks/${exam.stage_task_id}`)}>Back to Task</button>
+              <button className="btn" onClick={() => navigate(`/tasks/${exam.stage_task_id}`)}>{t('exam.backToTask')}</button>
             </div>
           </div>
         ) : (
@@ -77,12 +79,12 @@ export default function ExamView({ showToast }: ViewProps) {
                 {(q.qtype === 'short_answer' || q.qtype === 'code') && (
                   <textarea className="exam-answer" value={answers[q.id] || ''}
                     onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
-                    placeholder="Type your answer..." />
+                    placeholder={t('exam.answerPlaceholder')} />
                 )}
               </div>
             ))}
             <button className="btn btn-primary w-full mt-4" onClick={submit} disabled={evaluating}>
-              {evaluating ? 'Evaluating...' : 'Submit & Evaluate'}
+              {evaluating ? t('exam.evaluating') : t('exam.submit')}
             </button>
           </div>
         )}

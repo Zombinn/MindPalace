@@ -24,7 +24,7 @@ cd backend
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
-# → http://localhost:8000 | API docs: http://localhost:8000/docs
+# → http://localhost:8001 | API docs: http://localhost:8001/docs
 
 # Frontend
 cd frontend
@@ -150,3 +150,81 @@ Set in `backend/.env`:
 ## License
 
 Personal project — no license.
+
+---
+
+## Recent Updates (2026-06-11)
+
+### i18n — Chinese / English
+
+- Lightweight locale system (`src/i18n.tsx`): `LocaleProvider` + `useLocale()` hook + full translation map
+- Default locale: Chinese (`zh`), stored in localStorage
+- Language toggle in sidebar footer (🌐 中文 / EN)
+- All 10 page components internationalized — nav labels, status badges, form labels, placeholders, toast messages
+
+### Scripts Execution
+
+- **Manual run** → actual subprocess execution (`python3` via `create_subprocess_exec`), 30s timeout, captures stdout/stderr
+- **Code fence stripping** — auto-removes ``` `` ```python ``` ``` marks from AI-generated code before execution and storage
+- **Pagination** — 10 runs per page with Prev/Next controls
+- **Delete runs** — individual run deletion from detail modal
+- All existing scripts retroactively cleaned (fences stripped)
+
+### Sub-task Rich Content
+
+- **Enhanced decomposition prompt** — AI generates `key_points` (3-5 bullet takeaways), `practice_questions` (Q/A pairs), `ref_links` (URLs)
+- **New DB columns** — `sub_task.key_points`, `sub_task.practice_questions`, `sub_task.ref_links` (JSON)
+- **Clickable sub-tasks** — opens detail modal with four sections: 📖 Study Notes, ⭐ Key Points, ✏️ Practice Questions, 🔗 Reference Links
+- **Create Note from sub-task** — "Create Note" button in detail modal, pre-fills tags from knowledge_tags
+- **Task editing** — Edit button on task page header to modify title/objective
+- **Re-decompose confirmation** — warns before replacing existing sub-tasks (mastered preserved)
+
+### Dashboard Enhancements
+
+- Expanded from 4 to 8 stat cards (2 rows):
+  - Goals: active + done/total · Tasks: in-progress + passed/total
+  - Sub-tasks: done + remaining · Due Today + delays
+  - Active Scripts / total · Script Runs OK + failed
+  - Exam Pending · Weak Areas
+- Per-card subtext showing progress ratios
+
+### Breadcrumb Navigation
+
+- Task detail page header shows `← Goals` link back to parent goal
+- Sub-task detail modal shows task context
+
+### API & Backend Fixes
+
+| Fix | Description |
+|-----|-------------|
+| Port alignment | `vite.config.ts` proxy → `8001` (was 8000), matches `start.sh` backend port |
+| `end_date` nullable | Goal creation no longer requires end_date — schema + model + migration |
+| AI Gateway fallback | No-route scenes use DB default provider's model (not hardcoded `gpt-4o`) |
+| JSON parsing resilience | `extract_json` handles multi-object responses (`{...}{...}` → array wrap), trailing characters stripped |
+| Decompose error handling | AI call wrapped in try/except, returns 500+detail instead of unhandled crash |
+| Scripts API | Full CRUD + generate + run + runs endpoints, registered in router |
+| Dashboard stats | Added sub-task, script, and script-run aggregates to summary endpoint |
+| Page width | Removed `max-width:960px` constraint; `.main-content` gets `flex:1` for full-width |
+
+### Frontend Fixes
+
+| Fix | Description |
+|-----|-------------|
+| Run detail modal | Click run record → modal with full stdout/stderr, timestamps, delete button |
+| List truncation | Long stdout clipped at ~4 lines in list, full content scrollable in modal |
+| Toast position | Fixed z-index to show above modals |
+| `end_date` empty handling | Frontend sends `end || undefined` to avoid empty string validation errors |
+
+## Quick Start (updated)
+
+```bash
+# Backend — port 8001
+cd backend && source venv/bin/activate
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+# Frontend — port 5173, proxies /api → localhost:8001
+cd frontend && npm run dev
+
+# One-shot
+./start.sh
+```
