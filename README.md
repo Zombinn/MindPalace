@@ -100,6 +100,9 @@ SQLite with WAL mode. All tables via SQLAlchemy ORM. Tables:
 - `script` / `script_run` — cronjob definitions and execution history (M2)
 - `wrong_question_book` — cross-task aggregated wrong questions with review tracking
 - `learning_activity` — daily activity counter for heatmap and weekly report
+- `job_application` — job applications with 8-state pipeline, scores, tags, and notes
+- `pipeline_item` — URL inbox entries pending AI processing
+- `career_config` — key-value career profile and portal scanner settings
 
 ## Environment Variables
 
