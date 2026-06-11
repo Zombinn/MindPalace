@@ -9,6 +9,51 @@ function formatDate(s: string) { if (!s) return ''; return new Date(s).toISOStri
 function today() { return new Date().toISOString().slice(0, 10) }
 
 
+
+function ExamConfigEditor({ task, onUpdated, showToast }: { task: any; onUpdated: () => void; showToast: (m: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [questionCount, setQuestionCount] = useState(String(task.exam_config?.question_count || 5))
+  const [passScore, setPassScore] = useState(String(task.exam_config?.pass_score || 80))
+  const [maxDelays, setMaxDelays] = useState(String(task.max_delays || 3))
+
+  const save = async () => {
+    try {
+      await api.tasks.update(task.id, {
+        exam_config: { question_count: Number(questionCount), pass_score: Number(passScore) },
+        max_delays: Number(maxDelays),
+      })
+      showToast('Exam config saved')
+      setEditing(false)
+      onUpdated()
+    } catch { showToast('Save failed') }
+  }
+
+  if (!editing) return (
+    <div className="flex items-center gap-4 mt-2 text-xs text-[var(--text3)]">
+      <span>Exam: {questionCount} questions · pass {passScore}% · max {maxDelays} delays</span>
+      <button className="btn btn-ghost btn-sm text-xs" onClick={() => setEditing(true)}>Configure</button>
+    </div>
+  )
+
+  return (
+    <div className="flex items-center gap-3 mt-2 flex-wrap">
+      <div className="flex items-center gap-1">
+        <label className="text-xs text-[var(--text3)]">Questions</label>
+        <input className="form-input text-xs" style={{ width: 60, padding: '3px 6px' }} type="number" min="1" max="20" value={questionCount} onChange={e => setQuestionCount(e.target.value)} />
+      </div>
+      <div className="flex items-center gap-1">
+        <label className="text-xs text-[var(--text3)]">Pass %</label>
+        <input className="form-input text-xs" style={{ width: 60, padding: '3px 6px' }} type="number" min="10" max="100" value={passScore} onChange={e => setPassScore(e.target.value)} />
+      </div>
+      <div className="flex items-center gap-1">
+        <label className="text-xs text-[var(--text3)]">Max delays</label>
+        <input className="form-input text-xs" style={{ width: 50, padding: '3px 6px' }} type="number" min="0" max="10" value={maxDelays} onChange={e => setMaxDelays(e.target.value)} />
+      </div>
+      <button className="btn btn-primary btn-sm text-xs" onClick={save}>Save</button>
+      <button className="btn btn-ghost btn-sm text-xs" onClick={() => setEditing(false)}>Cancel</button>
+    </div>
+  )
+}
 export default function TaskDetail({ showToast }: ViewProps) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -66,6 +111,7 @@ export default function TaskDetail({ showToast }: ViewProps) {
           </div>
         </div>
         <div className="progress-bar mt-3"><div className="progress-fill" style={{ width: `${(task.progress || 0) * 100}%` }} /></div>
+        <ExamConfigEditor task={task} onUpdated={load} showToast={showToast} />
       </div>
       <div className="page-body">
         <div className="flex items-center justify-between mb-4">

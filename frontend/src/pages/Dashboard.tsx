@@ -56,7 +56,38 @@ export default function Dashboard({ showToast }: ViewProps) {
             </div>
           </div>
         )}
+
+        <Heatmap />
       </div>
     </>
+  )
+}
+
+function Heatmap() {
+  const [data, setData] = useState<any[]>([])
+  useEffect(() => {
+    api.dashboard.heatmap(35).then(setData).catch(() => {})
+  }, [])
+
+  if (!data.length) return null
+
+  const getColor = (count: number) => {
+    if (count === 0) return 'bg-[var(--bg3)]'
+    if (count <= 2) return 'bg-emerald-200 dark:bg-emerald-900'
+    if (count <= 5) return 'bg-emerald-400 dark:bg-emerald-700'
+    return 'bg-emerald-600 dark:bg-emerald-500'
+  }
+
+  return (
+    <div className="card">
+      <h3 className="font-semibold mb-3">Activity Heatmap (35 days)</h3>
+      <div className="flex flex-wrap gap-1">
+        {data.map(d => (
+          <div key={d.date} className={`w-3 h-3 rounded-sm ${getColor(d.count)}`}
+            title={`${d.date}: ${d.count} activities${d.is_today ? ' (today)' : ''}`}
+          />
+        ))}
+      </div>
+    </div>
   )
 }

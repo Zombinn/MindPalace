@@ -34,6 +34,38 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         return response
 
 
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+
+scheduler = AsyncIOScheduler()
+
+async def auto_check_due_tasks():
+    """TD §4.1: Scan tasks whose end_date has passed and auto-trigger exam_pending."""
+    from datetime import date
+    from sqlalchemy import select
+    from app.core.database import async_session
+    from app.models.domain import StageTask, SubTask
+    from app.api.tasks import enforce_transition, log_task_event
+    try:
+        async with async_session() as session:
+            tasks = (await session.execute(
+                select(StageTask).where(
+                    StageTask.end_date <= date.today(),
+                    StageTask.status.in_(["in_progress", "pending"])
+                )
+            )).scalars().all()
+            for t in tasks:
+                subs = (await session.execute(
+                    select(SubTask).where(SubTask.stage_task_id == t.id)
+                )).scalars().all()
+                if all(s.status in ("done", "mastered") for s in subs):
+                    await enforce_transition(t, "exam_pending", session)
+                    await session.commit()
+                    logger.info(f"Auto-triggered exam_pending for task {t.id}: {t.title}")
+    except Exception as e:
+        logger.error(f"auto_check_due_tasks error: {e}")
+
 settings = get_settings()
 
 
@@ -41,8 +73,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     await init_db()
     await seed_default_data()
-    logger.info("MindPalace API started")
+    scheduler.add_job(auto_check_due_tasks, IntervalTrigger(hours=1), id="auto_exam", replace_existing=True)
+    scheduler.start()
+    logger.info("MindPalace API started (APScheduler running)")
     yield
+    scheduler.shutdown()
     await engine.dispose()
 
 

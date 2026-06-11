@@ -12,6 +12,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import get_settings
+from app.models.domain import AICallLog
 from app.models.ai_config import AIScene
 
 settings = get_settings()
@@ -45,6 +46,22 @@ class AICallResult:
 
 class AIStructuredOutputError(Exception):
     pass
+
+
+async def _log_ai_call(scene: str, model: str, prompt: str, response: str, usage: dict, latency_ms: float, success: bool = True, error: str = ""):
+    """Log AI call to database for observability (TD §4.4)."""
+    try:
+        from app.core.database import async_session
+        async with async_session() as session:
+            log = AICallLog(
+                scene=scene, model=model, prompt=prompt[:8000], response=response[:8000],
+                tokens_in=usage.get("prompt_tokens"), tokens_out=usage.get("completion_tokens"),
+                latency_ms=round(latency_ms), success=success, error_message=error[:500] if error else None,
+            )
+            session.add(log)
+            await session.commit()
+    except Exception:
+        pass  # never fail the main flow due to logging
 
 
 class AIGateway:
@@ -140,9 +157,12 @@ class AIGateway:
 
             try:
                 parsed = response_model.model_validate_json(extract_json(raw))
+                lat = (time.time() - t0) * 1000
+                import asyncio
+                asyncio.ensure_future(_log_ai_call(scene.value, model, prompt, raw, usage, lat, True))
                 return AICallResult(
                     content=raw, parsed=parsed, model=model,
-                    usage=usage, latency_ms=(time.time() - t0) * 1000,
+                    usage=usage, latency_ms=lat,
                 )
             except (ValidationError, json.JSONDecodeError) as e:
                 logger.warning(f"Structured output validation failed (attempt {attempt+1}): {e}")
@@ -150,9 +170,12 @@ class AIGateway:
                 if attempt == 2:
                     raise AIStructuredOutputError(f"Failed to get valid structured output after 3 attempts: {e}")
 
+        lat = (time.time() - t0) * 1000
+        import asyncio
+        asyncio.ensure_future(_log_ai_call(scene.value, model, prompt, raw, usage, lat, True))
         return AICallResult(
             content=raw, model=model, usage=usage,
-            latency_ms=(time.time() - t0) * 1000,
+            latency_ms=lat,
         )
 
 

@@ -2,6 +2,33 @@ import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom'
 import { Home, Calendar, BookOpen, Settings, Plus, Edit3, Check, Circle, AlertTriangle, X, Sun, Moon, Menu, ChevronRight } from 'lucide-react'
 import { api } from '../api'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
+
+function MarkdownPreview({ content }: { content: string }) {
+  if (!content) return <div className="text-[var(--text3)] text-sm italic">Preview appears here...</div>
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        code({ node, className, children, ...props }: any) {
+          const match = /language-(\w+)/.exec(className || '')
+          if (match) {
+            return (
+              <pre className="bg-[var(--bg3)] rounded p-3 overflow-x-auto text-xs"><code className={className}>{children}</code></pre>
+            )
+          }
+          return <code className="bg-[var(--bg3)] px-1 rounded text-xs" {...props}>{children}</code>
+        }
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
+}
 
 type ViewProps = { showToast: (msg: string) => void }
 
@@ -72,8 +99,14 @@ export function NoteEditor({ showToast }: ViewProps) {
         </div>
       </div>
       <div className="page-body">
-        <textarea className="form-textarea w-full" style={{ minHeight: '400px', fontFamily: 'monospace' }} value={content}
-          onChange={e => setContent(e.target.value)} placeholder="Write your note in Markdown..." />
+        <div className="flex gap-4" style={{ minHeight: '450px' }}>
+          <textarea className="form-textarea flex-1" style={{ fontFamily: 'monospace', fontSize: '0.85rem', resize: 'none' }}
+            value={content} onChange={e => setContent(e.target.value)}
+            placeholder="Write your note in Markdown..." />
+          <div className="flex-1 prose prose-sm dark:prose-invert max-w-none overflow-y-auto p-4 border border-[var(--border)] rounded-lg bg-[var(--bg)]">
+            <MarkdownPreview content={content} />
+          </div>
+        </div>
       </div>
     </>
   )

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import { Home, Calendar, BookOpen, Settings, Sun, Moon, Menu, Briefcase } from 'lucide-react'
+import { Home, Calendar, BookOpen, Settings, Sun, Moon, Menu, Briefcase, AlertCircle } from 'lucide-react'
 import { ToastProvider, useToast } from './components/Toast'
 import { ThemeProvider, useTheme } from './components/Theme'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -13,6 +13,7 @@ import ExamView from './pages/ExamView'
 import { NoteList, NoteEditor } from './pages/NoteList'
 import SettingsView from './pages/SettingsView'
 import Career from './pages/Career'
+import WrongBook from './pages/WrongBook'
 
 const NAV = [
   { path: '/', label: 'Dashboard', icon: Home },
@@ -20,6 +21,7 @@ const NAV = [
   { path: '/notes', label: 'Notes', icon: BookOpen },
   { path: '/settings', label: 'Settings', icon: Settings },
   { path: '/career', label: 'Career', icon: Briefcase },
+  { path: '/wrongbook', label: 'Wrong Book', icon: AlertCircle },
 ]
 
 function AppShell() {
@@ -65,6 +67,7 @@ function AppShell() {
             <Route path="/notes/:id" element={<NoteEditor showToast={showToast} />} />
             <Route path="/settings" element={<SettingsView showToast={showToast} />} />
             <Route path="/career" element={<Career showToast={showToast} />} />
+            <Route path="/wrongbook" element={<WrongBook showToast={showToast} />} />
           </Routes>
         </ErrorBoundary>
       </main>

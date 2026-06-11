@@ -10,6 +10,35 @@ from app.schemas import StageTaskCreate, StageTaskUpdate, SubTaskUpdate, SubTask
 from app.api.helpers import get_or_404, task_to_dict, subtask_to_dict, note_to_dict, recalc_progress
 
 router = APIRouter(tags=["tasks"])
+# ── State Machine (TD §4.1) ────────────────────────────────────────
+
+VALID_TRANSITIONS = {
+    "pending":       ["in_progress"],
+    "in_progress":   ["exam_pending", "delayed"],
+    "exam_pending":  ["exam_in_progress", "in_progress"],
+    "exam_in_progress": ["evaluating"],
+    "evaluating":    ["passed", "delayed", "force_closed"],
+    "delayed":       ["in_progress", "force_closed"],
+    "passed":        [],   # terminal
+    "force_closed":  [],   # terminal
+}
+
+async def log_task_event(db, task_id, from_status, to_status, reason="", exam_id=None):
+    from datetime import datetime as dt
+    from app.models.domain import TaskEvent
+    ev = TaskEvent(stage_task_id=task_id, from_status=from_status, to_status=to_status,
+                   reason=reason, exam_id=exam_id, created_at=dt.utcnow())
+    db.add(ev)
+
+async def enforce_transition(task, new_status: str, db):
+    if new_status == task.status:
+        return
+    allowed = VALID_TRANSITIONS.get(task.status, [])
+    if new_status not in allowed:
+        from fastapi import HTTPException
+        raise HTTPException(400, f"Invalid transition: {task.status} → {new_status}. Allowed: {allowed}")
+    await log_task_event(db, task.id, task.status, new_status, "manual update")
+
 
 
 @router.get("/api/goals/{goal_id}/tasks")
@@ -42,6 +71,8 @@ async def get_task(task_id: int, db: AsyncSession = Depends(get_db)):
 @router.patch("/api/tasks/{task_id}")
 async def update_task(task_id: int, data: StageTaskUpdate, db: AsyncSession = Depends(get_db)):
     t = await get_or_404(db, StageTask, task_id)
+    if data.status and data.status != t.status:
+        await enforce_transition(t, data.status, db)
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(t, k, v)
     await db.commit()

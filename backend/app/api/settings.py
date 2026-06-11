@@ -6,6 +6,12 @@ from app.core.crypto import encrypt, decrypt
 from app.core.ai_gateway import ai_gateway
 from app.models.ai_config import AIProvider, AISceneRoute, PromptTemplate
 from app.schemas import ProviderCreate, ProviderUpdate, SceneRouteCreate, TemplateUpdate
+
+def _mask_key(key: str) -> str:
+    if len(key) <= 8:
+        return "***"
+    return key[:3] + "***" + key[-4:]
+
 from app.api.helpers import get_or_404
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -14,7 +20,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 @router.get("/providers")
 async def list_providers(db: AsyncSession = Depends(get_db)):
     providers = (await db.execute(select(AIProvider))).scalars().all()
-    return [{"id": p.id, "name": p.name, "base_url": p.base_url, "default_model": p.default_model, "is_default": p.is_default} for p in providers]
+    return [{"id": p.id, "name": p.name, "base_url": p.base_url, "default_model": p.default_model, "is_default": p.is_default, "api_key_masked": _mask_key(decrypt(p.api_key_enc))} for p in providers]
 
 
 @router.post("/providers")

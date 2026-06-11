@@ -162,3 +162,29 @@ class LearningActivity(Base):
     activity_date = Column(Date, nullable=False)
     activity_type = Column(String(32))
     count = Column(Integer, default=1)
+class TaskEvent(Base):
+    """Audit log for stage_task status transitions (TD §4.1)."""
+    __tablename__ = "task_event"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stage_task_id = Column(Integer, ForeignKey("stage_task.id"), nullable=False)
+    from_status = Column(String(24))
+    to_status = Column(String(24), nullable=False)
+    reason = Column(Text)
+    exam_id = Column(Integer, ForeignKey("exam.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AICallLog(Base):
+    """Log every LLM call for observability (TD §4.4)."""
+    __tablename__ = "ai_call_log"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scene = Column(String(32), nullable=False)
+    model = Column(String(128))
+    prompt = Column(Text)
+    response = Column(Text)
+    tokens_in = Column(Integer)
+    tokens_out = Column(Integer)
+    latency_ms = Column(Float)
+    success = Column(Boolean, default=True)
+    error_message = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)

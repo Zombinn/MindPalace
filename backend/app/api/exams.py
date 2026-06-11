@@ -9,6 +9,7 @@ from app.models.domain import StageTask, SubTask, Exam, ExamQuestion
 from app.models.ai_config import AIScene
 from app.schemas import ExamAnswer, ExamOverride, RedecomposeApply, ExamGenResponse, EvalResponse, RedecomposeResponse
 from app.api.helpers import get_or_404, task_to_dict, exam_to_dict, question_to_dict
+from app.api.tasks import enforce_transition, log_task_event
 
 router = APIRouter(prefix="/api", tags=["exams"])
 
@@ -129,7 +130,7 @@ async def evaluate_exam(exam_id: int, db: AsyncSession = Depends(get_db)):
 
     task = await get_or_404(db, StageTask, exam.stage_task_id)
     if passed:
-        task.status = "passed"
+        await enforce_transition(task, "passed", db)
         subs = (await db.execute(select(SubTask).where(SubTask.stage_task_id == task.id))).scalars().all()
         for s in subs:
             if s.knowledge_tags and not (set(s.knowledge_tags or []) & wrong_tags):
@@ -138,7 +139,8 @@ async def evaluate_exam(exam_id: int, db: AsyncSession = Depends(get_db)):
             elif s.knowledge_tags and (set(s.knowledge_tags or []) & wrong_tags):
                 s.status = "weak"
     else:
-        task.status = "delayed"
+        new_status = "force_closed" if (task.delay_count or 0) + 1 >= (task.max_delays or 3) else "delayed"
+        await enforce_transition(task, new_status, db)
         task.delay_count = (task.delay_count or 0) + 1
 
 
@@ -178,7 +180,8 @@ async def override_score(question_id: int, data: ExamOverride, db: AsyncSession 
     exam.passed = total >= (exam.pass_score or 80)
 
     task = await get_or_404(db, StageTask, exam.stage_task_id)
-    task.status = "passed" if exam.passed else "delayed"
+    ns = "passed" if exam.passed else ("force_closed" if (task.delay_count or 0) >= (task.max_delays or 3) else "delayed")
+    await enforce_transition(task, ns, db)
     await db.commit()
     return question_to_dict(q)
 
