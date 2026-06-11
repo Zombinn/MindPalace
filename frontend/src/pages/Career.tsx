@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, X, ChevronRight, ExternalLink, Briefcase, Inbox, BarChart3 } from 'lucide-react'
 import { api } from '../api'
-
-type ViewProps = { showToast: (msg: string) => void }
+import { formatDate, today, type ViewProps } from '../utils'
 
 const STATES = [
   { id: 'evaluated', label: 'Evaluated', color: 'bg-slate-200 dark:bg-slate-700' },
@@ -21,7 +20,6 @@ function statusColor(status: string) {
   return s?.color ?? 'bg-gray-100'
 }
 
-function today() { return new Date().toISOString().slice(0, 10) }
 
 export default function Career({ showToast }: ViewProps) {
   const [tab, setTab] = useState<'board' | 'inbox'>('board')

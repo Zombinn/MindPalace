@@ -2,12 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom'
 import { Home, Calendar, BookOpen, Settings, Plus, Edit3, Check, Circle, AlertTriangle, X, Sun, Moon, Menu, ChevronRight } from 'lucide-react'
 import { api } from '../api'
-
-type ViewProps = { showToast: (msg: string) => void }
-
-function formatDate(s: string) { if (!s) return ''; return new Date(s).toISOString().slice(0, 10) }
-function today() { return new Date().toISOString().slice(0, 10) }
-
+import { formatDate, today, type ViewProps } from '../utils'
 
 
 function ExamConfigEditor({ task, onUpdated, showToast }: { task: any; onUpdated: () => void; showToast: (m: string) => void }) {

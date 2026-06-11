@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom'
 import { Home, Calendar, BookOpen, Settings, Plus, Edit3, Check, Circle, AlertTriangle, X, Sun, Moon, Menu, ChevronRight } from 'lucide-react'
 import { api } from '../api'
+import { formatDate, today, type ViewProps } from '../utils'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
@@ -29,11 +30,6 @@ function MarkdownPreview({ content }: { content: string }) {
     </ReactMarkdown>
   )
 }
-
-type ViewProps = { showToast: (msg: string) => void }
-
-function formatDate(s: string) { if (!s) return ''; return new Date(s).toISOString().slice(0, 10) }
-function today() { return new Date().toISOString().slice(0, 10) }
 
 
 export function NoteList({ showToast }: ViewProps) {
