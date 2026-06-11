@@ -1,6 +1,6 @@
 import React from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import { Home, Calendar, BookOpen, Settings, Sun, Moon, Menu } from 'lucide-react'
+import { Home, Calendar, BookOpen, Settings, Sun, Moon, Menu, Briefcase } from 'lucide-react'
 import { ToastProvider, useToast } from './components/Toast'
 import { ThemeProvider, useTheme } from './components/Theme'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -12,12 +12,14 @@ import TaskDetail from './pages/TaskDetail'
 import ExamView from './pages/ExamView'
 import { NoteList, NoteEditor } from './pages/NoteList'
 import SettingsView from './pages/SettingsView'
+import Career from './pages/Career'
 
 const NAV = [
   { path: '/', label: 'Dashboard', icon: Home },
   { path: '/goals', label: 'Goals', icon: Calendar },
   { path: '/notes', label: 'Notes', icon: BookOpen },
   { path: '/settings', label: 'Settings', icon: Settings },
+  { path: '/career', label: 'Career', icon: Briefcase },
 ]
 
 function AppShell() {
@@ -62,6 +64,7 @@ function AppShell() {
             <Route path="/notes" element={<NoteList showToast={showToast} />} />
             <Route path="/notes/:id" element={<NoteEditor showToast={showToast} />} />
             <Route path="/settings" element={<SettingsView showToast={showToast} />} />
+            <Route path="/career" element={<Career showToast={showToast} />} />
           </Routes>
         </ErrorBoundary>
       </main>

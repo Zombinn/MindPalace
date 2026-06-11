@@ -81,4 +81,17 @@ export const api = {
     tags: () => request<[string, number][]>('/wrongbook/tags'),
     stats: () => request<{ total: number; reviewed: number; unreviewed: number }>('/wrongbook/stats'),
   },
+  career: {
+    jobs: (status?: string) => request<any[]>(`/career/jobs${status ? `?status=${status}` : ''}`),
+    createJob: (data: any) => request<any>('/career/jobs', { method: 'POST', body: JSON.stringify(data) }),
+    updateJob: (id: number, data: any) => request<any>(`/career/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteJob: (id: number) => request<any>(`/career/jobs/${id}`, { method: 'DELETE' }),
+    pipeline: (status?: string) => request<any[]>(`/career/pipeline${status ? `?status=${status}` : ''}`),
+    addPipelineItem: (data: any) => request<any>('/career/pipeline', { method: 'POST', body: JSON.stringify(data) }),
+    deletePipelineItem: (id: number) => request<any>(`/career/pipeline/${id}`, { method: 'DELETE' }),
+    config: (key: string) => request<any>(`/career/config/${key}`),
+    setConfig: (key: string, data: any) => request<any>(`/career/config/${key}`, { method: 'PUT', body: JSON.stringify(data) }),
+    stats: () => request<any>('/career/stats'),
+    states: () => request<any[]>('/career/states'),
+  },
 }

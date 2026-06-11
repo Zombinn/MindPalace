@@ -23,6 +23,7 @@ from app.api.notes import router as notes_router
 from app.api.dashboard import router as dashboard_router
 from app.api.settings import router as settings_router
 from app.api.wrongbook import router as wrongbook_router
+from app.api.career import router as career_router
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Inject X-Request-ID header for request correlation."""
@@ -80,6 +81,7 @@ app.include_router(notes_router)
 app.include_router(dashboard_router)
 app.include_router(settings_router)
 app.include_router(wrongbook_router)
+app.include_router(career_router)
 
 
 @app.get("/api/health")
