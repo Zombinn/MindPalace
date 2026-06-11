@@ -5,7 +5,6 @@ async function request<T>(url: string, opts?: RequestInit & { timeout?: number }
   const controller = new AbortController()
   const timeout = opts?.timeout ?? DEFAULT_TIMEOUT
   const timer = setTimeout(() => controller.abort(), timeout)
-
   try {
     const r = await fetch(BASE + url, {
       headers: { 'Content-Type': 'application/json' },
@@ -76,22 +75,37 @@ export const api = {
     updateTemplate: (id: number, data: any) => request<any>(`/settings/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
   wrongbook: {
-    list: (tag?: string, reviewed?: boolean) => request<any[]>(`/wrongbook${tag ? `?tag=${encodeURIComponent(tag)}` : ''}${reviewed !== undefined ? `${tag ? '&' : '?'}reviewed=${reviewed}` : ''}`),
+    list: (tag?: string, reviewed?: boolean) => {
+      const params = new URLSearchParams()
+      if (tag) params.set('tag', tag)
+      if (reviewed !== undefined) params.set('reviewed', String(reviewed))
+      const qs = params.toString()
+      return request<any[]>(`/wrongbook${qs ? '?' + qs : ''}`)
+    },
     review: (id: number) => request<any>(`/wrongbook/${id}`, { method: 'PATCH' }),
     tags: () => request<[string, number][]>('/wrongbook/tags'),
     stats: () => request<{ total: number; reviewed: number; unreviewed: number }>('/wrongbook/stats'),
   },
   career: {
-    jobs: (status?: string) => request<any[]>(`/career/jobs${status ? `?status=${status}` : ''}`),
+    jobs: (status?: string) => request<any[]>(`/career/jobs${status ? '?status=' + status : ''}`),
     createJob: (data: any) => request<any>('/career/jobs', { method: 'POST', body: JSON.stringify(data) }),
-    updateJob: (id: number, data: any) => request<any>(`/career/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    deleteJob: (id: number) => request<any>(`/career/jobs/${id}`, { method: 'DELETE' }),
-    pipeline: (status?: string) => request<any[]>(`/career/pipeline${status ? `?status=${status}` : ''}`),
+    updateJob: (id: number, data: any) => request<any>('/career/jobs/' + id, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteJob: (id: number) => request<any>('/career/jobs/' + id, { method: 'DELETE' }),
+    pipeline: (status?: string) => request<any[]>(`/career/pipeline${status ? '?status=' + status : ''}`),
     addPipelineItem: (data: any) => request<any>('/career/pipeline', { method: 'POST', body: JSON.stringify(data) }),
-    deletePipelineItem: (id: number) => request<any>(`/career/pipeline/${id}`, { method: 'DELETE' }),
-    config: (key: string) => request<any>(`/career/config/${key}`),
-    setConfig: (key: string, data: any) => request<any>(`/career/config/${key}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deletePipelineItem: (id: number) => request<any>('/career/pipeline/' + id, { method: 'DELETE' }),
+    config: (key: string) => request<any>('/career/config/' + key),
+    setConfig: (key: string, data: any) => request<any>('/career/config/' + key, { method: 'PUT', body: JSON.stringify(data) }),
     stats: () => request<any>('/career/stats'),
     states: () => request<any[]>('/career/states'),
+  },
+  scripts: {
+    list: () => request<any[]>('/scripts'),
+    create: (data: any) => request<any>('/scripts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: any) => request<any>('/scripts/' + id, { method: 'PATCH', body: JSON.stringify(data) }),
+    del: (id: number) => request<any>('/scripts/' + id, { method: 'DELETE' }),
+    generate: (data: any) => request<any>('/scripts/generate', { method: 'POST', body: JSON.stringify(data), timeout: 120000 }),
+    run: (id: number) => request<any>('/scripts/' + id + '/run', { method: 'POST' }),
+    runs: (id: number) => request<any[]>('/scripts/' + id + '/runs'),
   },
 }

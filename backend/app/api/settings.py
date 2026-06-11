@@ -14,6 +14,9 @@ def _mask_key(key: str) -> str:
 
 from app.api.helpers import get_or_404
 
+import json
+from fastapi.responses import JSONResponse
+
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 

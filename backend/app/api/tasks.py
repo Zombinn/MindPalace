@@ -1,11 +1,13 @@
 from datetime import datetime as dt
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.ai_gateway import ai_gateway
 from app.models.domain import Goal, StageTask, SubTask, Note
 from app.models.ai_config import AIScene
+import json
 from app.schemas import StageTaskCreate, StageTaskUpdate, SubTaskUpdate, SubTaskBatchConfirm, DecomposeResponse
 from app.api.helpers import get_or_404, task_to_dict, subtask_to_dict, note_to_dict, recalc_progress
 
@@ -106,6 +108,33 @@ async def decompose_task(task_id: int, db: AsyncSession = Depends(get_db)):
         DecomposeResponse,
     )
     return {"draft": result.parsed.model_dump() if result.parsed else {"subtasks": []}, "raw": result.content}
+
+@router.post("/api/tasks/{task_id}/decompose/stream")
+async def decompose_task_stream(task_id: int, db: AsyncSession = Depends(get_db)):
+    t = await get_or_404(db, StageTask, task_id)
+    existing = (await db.execute(select(SubTask).where(SubTask.stage_task_id == task_id, SubTask.status != "mastered"))).scalars().all()
+    await ai_gateway.reload(db)
+
+    async def generate():
+        yield f"data: {json.dumps({'status': 'started'})}\n\n"
+        try:
+            async for delta, done in ai_gateway.stream_call(
+                AIScene.decompose,
+                {
+                    "objective": t.objective or t.title, "title": t.title,
+                    "start_date": str(t.start_date or ""), "end_date": str(t.end_date or ""),
+                    "existing_subtasks": "\n".join(f"- {s.title} [{s.status}]" for s in existing),
+                },
+            ):
+                if done and not delta:
+                    yield f"data: {json.dumps({'status': 'done'})}\n\n"
+                elif delta:
+                    yield f"data: {json.dumps({'content': delta})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
 
 
 @router.post("/api/tasks/{task_id}/subtasks:confirm")

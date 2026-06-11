@@ -190,5 +190,33 @@ def extract_json(text: str) -> str:
     return text
 
 
+
+    async def stream_call(self, scene: AIScene, variables: dict):
+        """Stream LLM output via SSE chunks. Yields (content_delta, is_done)."""
+        route = self.get_route(scene)
+        prompt = self.render_template(scene, variables)
+        client = self.get_client(route)
+        model = route.model or settings.DEFAULT_MODEL
+        t0 = time.time()
+        full = ""
+        try:
+            stream = await client.chat.completions.create(
+                model=model, messages=[{"role": "user", "content": prompt}],
+                temperature=route.temperature, stream=True,
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    full += delta
+                    yield delta, False
+        except Exception as e:
+            logger.error(f"Stream error: {e}")
+            yield f"\n\n[Error: {e}]", True
+            return
+        lat = (time.time() - t0) * 1000
+        import asyncio
+        asyncio.ensure_future(_log_ai_call(scene.value, model, prompt, full, {"prompt_tokens": 0, "completion_tokens": 0}, lat, True))
+        yield "", True  # done signal
+
 # Singleton
 ai_gateway = AIGateway()
