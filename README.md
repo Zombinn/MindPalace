@@ -141,6 +141,11 @@ Set in `backend/.env`:
 - **API completeness** — Added `heatmap`, `weekly-report`, and `wrongbook` client endpoints
 - **Component isolation** — `useToast()` / `useTheme()` contexts extracted from inline logic
 
+### Code Quality
+- **Shared `utils.ts`** — Eliminated 8× duplicated `formatDate`/`today`/`ViewProps` definitions across all page modules
+- **Skill-based design audit** — Reviewed against `design-taste-frontend` + `clean-code` + `react-best-practices`: confirmed consistent card radius, CSS variable palette, dark mode coverage, responsive breakpoints, label-above-input form pattern, and <200-line file discipline
+
+
 
 ## License
 
