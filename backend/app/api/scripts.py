@@ -1,11 +1,10 @@
-"""Scripts CRUD + generate + run."""
+"""Scripts CRUD + generate + run — streaming log support."""
 from fastapi import APIRouter, Depends, HTTPException
 import asyncio
 import re
 import sys
 
 def _strip_code_fences(code: str) -> str:
-    """Remove markdown code fences like ```python ... ``` from script code."""
     m = re.search(r'```(?:python)?\s*\n(.*?)\n```', code, re.DOTALL)
     if m:
         return m.group(1).strip()
@@ -14,7 +13,7 @@ from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Optional
-from app.core.database import get_db
+from app.core.database import get_db, async_session
 from app.core.ai_gateway import ai_gateway, AIScene
 from app.models.domain import Script, ScriptRun
 
@@ -98,37 +97,103 @@ async def run_script(script_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Script not found")
     from datetime import datetime
     import subprocess, tempfile, os
+
     run = ScriptRun(script_id=script_id, trigger="manual", status="running", started_at=datetime.utcnow())
     db.add(run)
     await db.commit()
     await db.refresh(run)
-    try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            clean_code = _strip_code_fences(s.code)
-            f.write(clean_code)
-            tmp_path = f.name
-        proc = await asyncio.create_subprocess_exec(
-            "/usr/bin/python3", tmp_path,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
+    run_id = run.id
+    timeout = s.timeout_sec or 300
+
+    async def _bg_execute():
+        buf_stdout = ""
+        buf_stderr = ""
+        last_update = asyncio.get_event_loop().time()
+
+        async def _flush_logs(force: bool = False):
+            nonlocal buf_stdout, buf_stderr, last_update
+            now = asyncio.get_event_loop().time()
+            if not force and now - last_update < 1.0:
+                return
+            last_update = now
+            async with async_session() as bg_db:
+                r = (await bg_db.execute(select(ScriptRun).where(ScriptRun.id == run_id))).scalar_one_or_none()
+                if r:
+                    if buf_stdout:
+                        r.stdout = (r.stdout or "") + buf_stdout
+                        r.stdout = r.stdout[-100000:]  # keep last 100KB
+                    if buf_stderr:
+                        r.stderr = (r.stderr or "") + buf_stderr
+                        r.stderr = r.stderr[-100000:]
+                    await bg_db.commit()
+                buf_stdout = ""
+                buf_stderr = ""
+
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=s.timeout_sec or 30)
-        except asyncio.TimeoutError:
-            proc.kill()
-            stdout, stderr = await proc.communicate()
-            run.status = "timeout"
-        else:
-            run.status = "success" if proc.returncode == 0 else "failed"
-        run.stdout = stdout.decode('utf-8', errors='replace')[:50000] if stdout else None
-        run.stderr = stderr.decode('utf-8', errors='replace')[:50000] if stderr else None
-        run.finished_at = datetime.utcnow()
-        os.unlink(tmp_path)
-    except Exception as e:
-        run.status = "failed"
-        run.stderr = str(e)
-        run.finished_at = datetime.utcnow()
-    await db.commit()
-    return {"ok": True, "run_id": run.id, "status": run.status, "stdout": run.stdout, "stderr": run.stderr}
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+                clean_code = _strip_code_fences(s.code)
+                f.write(clean_code)
+                tmp_path = f.name
+            proc = await asyncio.create_subprocess_exec(
+                "/opt/homebrew/bin/python3.12", tmp_path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+
+            async def _read_stream(stream, out_buf_name):
+                nonlocal buf_stdout, buf_stderr
+                while True:
+                    try:
+                        line = await asyncio.wait_for(stream.readline(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        line = None
+                    if line:
+                        decoded = line.decode('utf-8', errors='replace')
+                        if out_buf_name == 'stdout':
+                            buf_stdout += decoded
+                        else:
+                            buf_stderr += decoded
+                        await _flush_logs()
+                    elif line == b'' or line is None:
+                        # Empty line is still progress; but End-of-file is b''
+                        if line == b'':
+                            break
+                        # Timeout with no data — flush anyway
+                        await _flush_logs()
+                    else:
+                        break
+
+            read_stdout = asyncio.create_task(_read_stream(proc.stdout, 'stdout'))
+            read_stderr = asyncio.create_task(_read_stream(proc.stderr, 'stderr'))
+
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(read_stdout, read_stderr),
+                    timeout=timeout
+                )
+                await proc.wait()
+                status = "success" if proc.returncode == 0 else "failed"
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                status = "timeout"
+
+            await _flush_logs(force=True)
+            os.unlink(tmp_path)
+        except Exception as e:
+            status = "failed"
+            buf_stderr += f"\n[FATAL] {e}"
+            await _flush_logs(force=True)
+
+        # Final status update
+        async with async_session() as bg_db:
+            r = (await bg_db.execute(select(ScriptRun).where(ScriptRun.id == run_id))).scalar_one_or_none()
+            if r:
+                r.status = status
+                r.finished_at = datetime.utcnow()
+                await bg_db.commit()
+
+    asyncio.create_task(_bg_execute())
+    return {"ok": True, "run_id": run_id, "status": "running"}
 
 
 @router.get("/{script_id}/runs")

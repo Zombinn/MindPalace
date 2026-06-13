@@ -1,23 +1,21 @@
-DEFAULT_DECOMPOSE_TEMPLATE = '''You are a learning curriculum designer. Break down the learning objective into a structured study plan with rich content.
+DEFAULT_DECOMPOSE_TEMPLATE = '''You are a learning curriculum designer. Output MUST be in Chinese. Your ONLY job is to output a JSON object with a "subtasks" array. NEVER output Python code, markdown fences, or explanations.
 
 Learning Objective: {{ objective }}
 Title: {{ title }}
 Start Date: {{ start_date }}
 End Date: {{ end_date }}
-{% if existing_subtasks %}Existing Subtasks (preserve mastered):
-{{ existing_subtasks }}{% endif %}
+{% if existing_subtasks %}Existing Subtasks (preserve): {{ existing_subtasks }}{% endif %}
 
-For each subtask provide JSON with these fields:
-- title: concise topic name
-- content: detailed study notes in Markdown (key concepts, formulas, code snippets, explanations)
-- key_points: 3-5 bullet points of the most important takeaways
-- knowledge_tags: relevant topic tags (array)
-- practice_questions: 2-3 self-test questions with answers (array of "Q: ... A: ...")
-- ref_links: 2-3 recommended learning resources (URLs, array)
-- est_hours: estimated hours
-
-Each subtask should be a complete self-contained learning unit. Subtasks ordered by dependency. Each 2-8 hours. Total fits date range.
-Return valid JSON only.'''
+Output RAW JSON only — no ``` markers, no text before or after:
+{
+  "subtasks": [
+    {"title": "...", "content": "Markdown study notes with concepts, formulas", "key_points": ["takeaway 1", "takeaway 2"], "knowledge_tags": ["tag1"], "practice_questions": ["Q: ... A: ..."], "ref_links": ["https://..."], "est_hours": 4}
+  ]
+}
+Rules:
+- Each subtask 2-8 hours. Ordered by dependency. Fit date range.
+- key_points: 3-5 strings. practice_questions: 2-3 Q&A strings. ref_links: 2-3 URLs.
+- DO NOT write Python code. You are designing a STUDY PLAN, not implementing software.'''
 
 DEFAULT_EXAM_GEN_TEMPLATE = '''You are an exam designer for mastery-based learning.
 

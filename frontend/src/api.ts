@@ -38,6 +38,7 @@ export const api = {
     create: (goalId: number, data: any) => request<any>(`/goals/${goalId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: number) => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
+    del: (id: number) => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
     decompose: (id: number) => request<any>(`/tasks/${id}/decompose`, { method: 'POST', timeout: 120000 }),
     confirmSubs: (taskId: number, data: any) => request<any>(`/tasks/${taskId}/subtasks:confirm`, { method: 'POST', body: JSON.stringify(data) }),
   },

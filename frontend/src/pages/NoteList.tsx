@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom'
+import { Routes, Route, Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Home, Calendar, BookOpen, Settings, Plus, Edit3, Check, Circle, AlertTriangle, X, Sun, Moon, Menu, ChevronRight } from 'lucide-react'
 import { api } from '../api'
 import { formatDate, today, type ViewProps } from '../utils'
@@ -72,6 +72,15 @@ export function NoteEditor({ showToast }: ViewProps) {
   const isNew = id === 'new'
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [searchParams] = useSearchParams()
+
+  // Pre-fill from query params (e.g. from TaskDetail "Create Note")
+  useEffect(() => {
+    const t = searchParams.get('title')
+    const c = searchParams.get('content')
+    if (t) setTitle(t)
+    if (c) setContent(c)
+  }, [searchParams])
 
   useEffect(() => {
     if (!isNew) api.notes.list().then(ns => {
@@ -81,6 +90,7 @@ export function NoteEditor({ showToast }: ViewProps) {
   }, [id])
 
   const save = async () => {
+    if (!title.trim()) return showToast(t('notes.titleRequired') || 'Title is required')
     try {
       if (isNew) await api.notes.create({ title, content })
       else await api.notes.update(Number(id), { title, content })

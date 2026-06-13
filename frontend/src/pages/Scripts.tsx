@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Plus, X, Play, Square, Code, Clock, ChevronRight, ExternalLink, Trash2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, X, Play, Square, Code, Clock, ChevronRight, ExternalLink, Trash2, Loader, RefreshCw, Terminal, FileText } from 'lucide-react'
 import { api } from '../api'
 import { useLocale } from '../i18n'
 
@@ -15,6 +15,9 @@ export default function Scripts({ showToast }: ViewProps) {
   const [selectedRun, setSelectedRun] = useState<any>(null)
   const [runsPage, setRunsPage] = useState<Record<number, number>>({})
   const [runsTotal, setRunsTotal] = useState<Record<number, number>>({})
+  const [runningIds, setRunningIds] = useState<Set<number>>(new Set())
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const selectedRunRef = useRef<any>(null)
 
   const load = async () => {
     try {
@@ -30,8 +33,38 @@ export default function Scripts({ showToast }: ViewProps) {
       setRuns(prev => ({ ...prev, [scriptId]: r.items || r }))
       setRunsPage(prev => ({ ...prev, [scriptId]: page }))
       setRunsTotal(prev => ({ ...prev, [scriptId]: r.total || 0 }))
-    } catch {}
+      return r.items || r
+    } catch { return [] }
   }
+
+  // Sync selectedRun to ref
+  useEffect(() => { selectedRunRef.current = selectedRun }, [selectedRun])
+
+  // Poll running scripts
+  useEffect(() => {
+    if (runningIds.size === 0) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+      return
+    }
+    if (pollRef.current) return
+    pollRef.current = setInterval(async () => {
+      let stillRunning = false
+      for (const id of runningIds) {
+        const items = await loadRuns(id, 1)
+          // Keep modal in sync
+          const updated = items.find((r: any) => r.id === selectedRunRef.current?.id)
+          if (updated) setSelectedRun({ ...updated })
+        if (items.some((r: any) => r.status === 'running')) {
+          stillRunning = true
+        }
+      }
+      if (!stillRunning) {
+        setRunningIds(new Set())
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+      }
+    }, 2000)
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null } }
+  }, [runningIds])
 
   const toggleEnabled = async (s: any) => {
     try {
@@ -44,8 +77,16 @@ export default function Scripts({ showToast }: ViewProps) {
   const testRun = async (scriptId: number) => {
     try {
       const result = await api.scripts.run(scriptId)
-      showToast(result.status === 'success' ? 'Execution OK' : result.status === 'timeout' ? 'Timed out' : 'Execution failed')
-      loadRuns(scriptId, 1)
+      if (result.status === 'running') {
+        setRunningIds(prev => new Set(prev).add(scriptId))
+        setActiveScript(scriptId)
+        showToast('Script started...')
+        // initial load
+        await loadRuns(scriptId, 1)
+      } else {
+        showToast(result.status === 'success' ? 'Execution OK' : result.status === 'timeout' ? 'Timed out' : 'Execution failed')
+        loadRuns(scriptId, 1)
+      }
     } catch { showToast(t('scripts.testFailed')) }
   }
 
@@ -82,9 +123,12 @@ export default function Scripts({ showToast }: ViewProps) {
                 <span className="font-medium">{s.name}</span>
                 {s.enabled ? <span className="badge badge-active">{t('scripts.active')}</span> : <span className="badge badge-done">{t('scripts.disabled')}</span>}
                 {s.cron_expr && <span className="text-xs text-[var(--text3)]"><Clock size={12} className="inline mr-1" />{s.cron_expr}</span>}
+                {runningIds.has(s.id) && <span className="flex items-center gap-1 text-xs text-[var(--accent)] animate-pulse"><Loader size={12} className="animate-spin" /> Running...</span>}
               </div>
               <div className="flex gap-2">
-                <button className="btn btn-ghost btn-sm" onClick={() => testRun(s.id)}><Play size={14} /> {t('common.test')}</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => testRun(s.id)} disabled={runningIds.has(s.id)}>
+                  {runningIds.has(s.id) ? <Loader size={14} className="animate-spin" /> : <Play size={14} />} {t('common.test')}
+                </button>
                 <button className="btn btn-ghost btn-sm" onClick={() => toggleEnabled(s)}>{s.enabled ? <Square size={14} /> : <Play size={14} />} {s.enabled ? t('common.disable') : t('common.enable')}</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => { setEditScript(s); setShowForm(true) }}>{t('common.edit')}</button>
               </div>
@@ -102,16 +146,25 @@ export default function Scripts({ showToast }: ViewProps) {
                     onClick={() => setSelectedRun(r)}
                   >
                     <div className="flex justify-between items-center">
-                      <span className={r.status === 'success' ? 'text-emerald-600' : r.status === 'failed' ? 'text-red-600' : 'text-[var(--text2)]'}>
-                        {r.status} · {r.trigger}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {r.status === 'running' ? (
+                          <span className="text-[var(--accent)] flex items-center gap-1"><Loader size={10} className="animate-spin" /> running</span>
+                        ) : r.status === 'success' ? (
+                          <span className="text-emerald-600">success</span>
+                        ) : r.status === 'timeout' ? (
+                          <span className="text-amber-600">timeout</span>
+                        ) : (
+                          <span className="text-red-600">failed</span>
+                        )}
+                        <span className="text-[var(--text3)]">· {r.trigger}</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[var(--text3)]">{new Date(r.started_at).toLocaleString()}</span>
                         <ChevronRight size={12} className="text-[var(--text3)]" />
                       </div>
                     </div>
                     {(r.stdout || r.stderr) && (
-                      <pre className="bg-[var(--bg3)] rounded p-2 mt-1 text-xs overflow-x-auto max-h-16 overflow-hidden">{r.stdout}{r.stderr}</pre>
+                      <pre className="bg-[var(--bg3)] rounded p-2 mt-1 text-xs overflow-x-auto max-h-24 overflow-y-auto whitespace-pre-wrap">{r.stderr}{r.stdout}</pre>
                     )}
                   </div>
                 ))}
@@ -133,36 +186,64 @@ export default function Scripts({ showToast }: ViewProps) {
       </div>
       {selectedRun && (
         <div className="modal-overlay" onClick={() => setSelectedRun(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 700, maxHeight: '90vh' }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 800, maxHeight: '90vh' }}>
             <div className="modal-header">
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm">Run #{selectedRun.id}</span>
-                <span className={`ml-2 badge text-xs ${selectedRun.status === 'success' ? 'badge-active' : selectedRun.status === 'failed' ? 'badge-overdue' : ''}`}>
-                  {selectedRun.status}
-                </span>
-                <span className="text-xs text-[var(--text3)] ml-2">{selectedRun.trigger}</span>
+                {selectedRun.status === 'running' ? (
+                  <span className="badge text-xs flex items-center gap-1"><Loader size={10} className="animate-spin" /> running</span>
+                ) : (
+                  <span className={`badge text-xs ${selectedRun.status === 'success' ? 'badge-active' : selectedRun.status === 'failed' ? 'badge-overdue' : ''}`}>
+                    {selectedRun.status}
+                  </span>
+                )}
+                <span className="text-xs text-[var(--text3)]">{selectedRun.trigger}</span>
               </div>
-              <button onClick={() => setSelectedRun(null)}><X size={16} /></button>
+              <div className="flex items-center gap-2">
+                {selectedRun.status === 'running' && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => {
+                    loadRuns(scripts.find((s: any) => runs[s.id]?.some((r: any) => r.id === selectedRun.id))?.id || 0, 1)
+                  }}><RefreshCw size={14} /></button>
+                )}
+                <button onClick={() => setSelectedRun(null)}><X size={16} /></button>
+              </div>
             </div>
-            <div className="modal-body">
+            <div className="modal-body" style={{ maxHeight: '60vh', overflow: 'auto' }}>
               <div className="text-xs text-[var(--text3)] mb-3">
                 Started: {new Date(selectedRun.started_at).toLocaleString()}
                 {selectedRun.finished_at && <> · Finished: {new Date(selectedRun.finished_at).toLocaleString()}</>}
+                {selectedRun.status === 'running' && <span className="ml-2 text-[var(--accent)] animate-pulse">· Auto-refreshing...</span>}
               </div>
-              {selectedRun.stdout && (
-                <div className="mb-3">
-                  <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">stdout</div>
-                  <pre className="bg-[var(--bg3)] rounded p-3 text-xs overflow-auto max-h-60 whitespace-pre-wrap">{selectedRun.stdout}</pre>
-                </div>
-              )}
+
+              {/* Log (stderr): real-time progress */}
               {selectedRun.stderr && (
                 <div className="mb-3">
-                  <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">stderr</div>
-                  <pre className="bg-[var(--bg3)] rounded p-3 text-xs overflow-auto max-h-60 whitespace-pre-wrap text-red-600 dark:text-red-400">{selectedRun.stderr}</pre>
+                  <div className="text-xs font-semibold text-[var(--text2)] mb-1 flex items-center gap-1">
+                    <Terminal size={12} /> Log
+                  </div>
+                  <pre className="bg-[var(--bg3)] rounded p-3 text-xs overflow-auto whitespace-pre-wrap"
+                    style={{ maxHeight: 200, fontFamily: 'ui-monospace, monospace' }}>{selectedRun.stderr}</pre>
                 </div>
               )}
-              {!selectedRun.stdout && !selectedRun.stderr && (
+
+              {/* Stdout: final output / JSON result */}
+              {selectedRun.stdout && (
+                <div className="mb-3">
+                  <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                    <FileText size={12} /> Output
+                  </div>
+                  <pre className="bg-[var(--bg3)] rounded p-3 text-xs overflow-auto whitespace-pre-wrap"
+                    style={{ maxHeight: 300, fontFamily: 'ui-monospace, monospace' }}>{selectedRun.stdout}</pre>
+                </div>
+              )}
+
+              {!selectedRun.stdout && !selectedRun.stderr && selectedRun.status !== 'running' && (
                 <div className="text-sm text-[var(--text3)] italic text-center py-8">No output captured</div>
+              )}
+              {!selectedRun.stdout && !selectedRun.stderr && selectedRun.status === 'running' && (
+                <div className="text-sm text-[var(--text2)] text-center py-8 flex items-center justify-center gap-2">
+                  <Loader size={16} className="animate-spin" /> Script is running...
+                </div>
               )}
             </div>
             <div className="modal-footer">

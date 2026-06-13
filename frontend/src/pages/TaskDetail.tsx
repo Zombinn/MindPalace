@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Link, useNavigate, useParams } from 'react-router-dom'
-import { Home, Calendar, BookOpen, Settings, Plus, Edit3, Check, Circle, AlertTriangle, X, Sun, Moon, Menu, ChevronRight } from 'lucide-react'
+import { Home, Calendar, BookOpen, Settings, Plus, Edit3, Check, Circle, AlertTriangle, Trash2, X, Sun, Moon, Menu, ChevronRight } from 'lucide-react'
 import { api } from '../api'
 import { formatDate, today, type ViewProps } from '../utils'
 import { useLocale } from '../i18n'
@@ -62,6 +62,13 @@ export default function TaskDetail({ showToast }: ViewProps) {
   const [selectedSub, setSelectedSub] = useState<any>(null)
   const [showReDecomposeConfirm, setShowReDecomposeConfirm] = useState(false)
 
+
+  const deleteTask = async () => {
+    if (!window.confirm("Delete this task and all subtasks?")) return
+    try { await api.tasks.del(task.id); showToast("Task deleted"); window.history.back() }
+    catch { showToast("Save failed") }
+  }
+
   const load = () => api.tasks.get(Number(id)).then(setTask).catch(() => showToast(t('common.loadFailed')))
   useEffect(() => { load() }, [id])
 
@@ -119,7 +126,8 @@ export default function TaskDetail({ showToast }: ViewProps) {
             <div className="page-subtitle">{task.status} · {Math.round((task.progress || 0) * 100)}% · Delays: {task.delay_count}</div>
           </div>
           <div className="flex gap-2">
-            <button className="btn btn-sm" onClick={() => setShowEditTask(true)}><Edit3 size={14} /> {t('common.edit')}</button>
+            <button className="btn btn-sm" onClick={() => setShowEditTask(true)}><Edit3 size={14} /> Edit</button>
+            <button className="btn btn-sm btn-ghost text-red-600" onClick={deleteTask}><Trash2 size={14} /></button>
             {task.status !== 'passed' && (
               <button className="btn btn-primary btn-sm" onClick={startExam}><AlertTriangle size={14} /> {t('taskDetail.takeExam')}</button>
             )}

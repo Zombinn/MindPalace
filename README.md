@@ -228,3 +228,20 @@ cd frontend && npm run dev
 # One-shot
 ./start.sh
 ```
+
+
+## Recent Updates (2026-06-13)
+
+### Scripts (Playwright + CSV)
+- Job scraping scripts use Playwright (headless Chromium) for Chinese recruitment sites
+- 18 company URLs updated with verified campus/social recruitment links
+- CSV output: `company|title|responsibilities|requirements` pipe-delimited
+- Streaming real-time log via backend `create_task` + frontend polling every 2s
+- 360s timeout for long-running scrapers
+
+### Fixes
+- **422 Unprocessable Entity**: `StageTaskCreate` now accepts empty date strings (coerced to `None`)
+- **Decompose prompt**: Explicit `Output MUST be in Chinese`, no code generation
+- **Task deletion**: Delete button with confirmation dialog on TaskDetail page
+- **Note saving**: Title validation prevents empty-note creation; `form-textarea` CSS fixed
+- **`_track_activity`**: Fixed missing `await` in notes API (RuntimeWarning)

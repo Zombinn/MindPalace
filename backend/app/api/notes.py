@@ -50,7 +50,7 @@ async def create_note(data: NoteCreate, db: AsyncSession = Depends(get_db)):
     await db.refresh(n)
     # Track activity
     from app.models.domain import LearningActivity
-    _track_activity(db, date.today(), 'note_created')
+    await _track_activity(db, date.today(), 'note_created')
     return note_to_dict(n)
 
 
